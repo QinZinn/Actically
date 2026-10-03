@@ -31,10 +31,27 @@ export function errorResponse(e: unknown, requestId: string) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+/** Reads at most MAX_BODY bytes; chunked/lying bodies are cut off without buffering the rest. */
+async function readLimited(req: Request): Promise<string> {
+  const tooLarge = () => new ApiFailure("VALIDATION_ERROR", "Yêu cầu quá lớn.");
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) throw tooLarge();
+  if (!req.body) return "";
+  const reader = req.body.getReader(), chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY) { await reader.cancel().catch(() => {}); throw tooLarge(); }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  chunks.reduce((offset, c) => (bytes.set(c, offset), offset + c.byteLength), 0);
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { throw new ApiFailure("VALIDATION_ERROR", "JSON không hợp lệ."); }
+}
+
 export async function readBody<T>(req: Request, schema: z.ZodType<T>): Promise<T> {
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) throw new ApiFailure("VALIDATION_ERROR", "Yêu cầu quá lớn.");
-  const text = await req.text();
-  if (text.length > MAX_BODY) throw new ApiFailure("VALIDATION_ERROR", "Yêu cầu quá lớn.");
+  const text = await readLimited(req);
   let json: unknown;
   try { json = text ? JSON.parse(text) : {}; } catch { throw new ApiFailure("VALIDATION_ERROR", "JSON không hợp lệ."); }
   return schema.parse(json);

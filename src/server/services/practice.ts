@@ -6,8 +6,9 @@ import type { Db } from "@/db/client";
 import { practiceAttempts, practiceEvaluations } from "@/db/schema";
 import type { ListParams } from "@/server/auth/route";
 import { AiServiceError } from "@/server/ai/errors";
+import { getAiMetadata } from "@/server/composition";
 import { withAi } from "./ai-quota";
-import { assertSamePayload, iso, nowOf, type Ctx } from "./context";
+import { assertSamePayload, iso, nowOf, throwIfAborted, type Ctx } from "./context";
 import { ApiFailure, conflict, isUniqueViolation, notFound } from "./errors";
 import { getConcept, getStudySet, sourceRevisionSnapshots, toConcept } from "./knowledge";
 
@@ -123,11 +124,13 @@ export async function evaluateAttempt(ctx: Ctx, id: string) {
     const result = parsed.data;
     verifyFindings([...result.observations, ...(result.kind === "blurting" ? [...result.correct, ...result.missing, ...result.incorrect] : [])], attempt.learnerText, concepts, sources);
     if (result.kind === "feynman" && !result.sufficientEvidence && Object.values(result.scores).some(s => s !== null)) throw invalid("chấm điểm khi thiếu bằng chứng");
+    throwIfAborted(ctx.signal);
     return await ctx.db.transaction(async tx => {
+      throwIfAborted(ctx.signal);
       const [row] = await tx.insert(practiceEvaluations).values({ userId: ctx.userId, attemptId: id, result,
-        // ponytail: model/prompt version come from env until composition exposes provider metadata (BE-REQ-7).
-        promptVersion: process.env.AI_PROMPT_VERSION ?? "unversioned", model: process.env.NEBIUS_MODEL || "unconfigured" }).returning();
+        promptVersion: getAiMetadata().promptVersion, model: getAiMetadata().model }).returning();
       await tx.update(practiceAttempts).set({ status: "evaluated", updatedAt: new Date() }).where(eq(practiceAttempts.id, id));
+      throwIfAborted(ctx.signal);
       return toEvaluation(row);
     });
   } catch (e) {

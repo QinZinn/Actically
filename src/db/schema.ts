@@ -117,10 +117,14 @@ export const flashcards = pgTable("flashcards", {
 }, t => [ownerKey(t), uniqueIndex().on(t.conceptId), foreignKey({ columns: [t.conceptId, t.userId], foreignColumns: [concepts.id, concepts.userId] }).onDelete("cascade"),
   foreignKey({ columns: [t.studySetId, t.userId], foreignColumns: [studySets.id, studySets.userId] }).onDelete("cascade"), index().on(t.userId, t.due), ownRead(t)]);
 
+// Idempotency claim taken BEFORE the AI call: running → completed (card_id set) | failed (retryable). Defaults keep 0000-era rows valid.
 export const cardGenerations = pgTable("card_generations", {
-  userId: owner(), idempotencyKey: text("idempotency_key").notNull(), cardId: uuid("card_id").notNull(), conceptId: uuid("concept_id").notNull(),
-  createdAt: ts("created_at").notNull().defaultNow(),
-}, t => [unique().on(t.userId, t.idempotencyKey), foreignKey({ columns: [t.cardId, t.userId], foreignColumns: [flashcards.id, flashcards.userId] }).onDelete("cascade")]).enableRLS();
+  userId: owner(), idempotencyKey: text("idempotency_key").notNull(), cardId: uuid("card_id"), conceptId: uuid("concept_id").notNull(),
+  expectedConceptRevision: integer("expected_concept_revision").notNull().default(0),
+  status: text("status", { enum: ["running", "completed", "failed"] }).notNull().default("completed"),
+  ...dates(),
+}, t => [unique().on(t.userId, t.idempotencyKey), foreignKey({ columns: [t.cardId, t.userId], foreignColumns: [flashcards.id, flashcards.userId] }).onDelete("cascade"),
+  foreignKey({ columns: [t.conceptId, t.userId], foreignColumns: [concepts.id, concepts.userId] }).onDelete("cascade")]).enableRLS();
 
 // Append-only. unique(card_id, revision_before) makes a double grade of one presentation impossible.
 export const reviewEvents = pgTable("review_events", {

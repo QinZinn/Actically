@@ -3,6 +3,7 @@ import type { UserProfile } from "@/contracts/dto";
 import type { ProfileUpdate } from "@/contracts/requests";
 import type { Db } from "@/db/client";
 import { profiles } from "@/db/schema";
+import { getAiMetadata } from "@/server/composition";
 import { iso, nowOf, type Ctx } from "./context";
 
 export const DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh";
@@ -16,8 +17,7 @@ export async function ensureProfile(db: Db, userId: string) {
 
 const toProfile = (ctx: Ctx, r: typeof profiles.$inferSelect): UserProfile => ({
   id: r.id, email: ctx.email, displayName: r.displayName, timezone: r.timezone, sidebarCollapsed: r.sidebarCollapsed,
-  // ponytail: env presence only; Codex's composition decides the real service. Swap for an exported check if one appears.
-  connections: { database: "connected", ai: process.env.NEBIUS_API_KEY && process.env.NEBIUS_MODEL ? "configured" : "unavailable" },
+  connections: { database: "connected", ai: getAiMetadata().configured ? "configured" : "unavailable" },
   createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt),
 });
 

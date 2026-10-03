@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lt, or, sql } from "drizzle-orm";
 import { createEmptyCard, fsrs, Rating, type Card, type Grade } from "ts-fsrs";
 import { aiFlashcardSchema } from "@/contracts/ai";
 import type { Flashcard, GradeResult, ReviewPresentation } from "@/contracts/dto";
@@ -7,13 +7,14 @@ import type { Db } from "@/db/client";
 import { cardGenerations, concepts, flashcards, reviewEvents, type FsrsState } from "@/db/schema";
 import type { ListParams } from "@/server/auth/route";
 import { withAi } from "./ai-quota";
-import { iso, nowOf, type Ctx } from "./context";
+import { iso, nowOf, throwIfAborted, type Ctx } from "./context";
 import { ApiFailure, conflict, notFound } from "./errors";
 import { getConcept, sourceRevisionSnapshots, toConcept } from "./knowledge";
 import { userTimezone } from "./profile";
 import { groundedRefs } from "./sessions";
 
 const scheduler = fsrs(); // default parameters, fuzz off => deterministic
+const CLAIM_STALE_MS = 2 * 60_000; // AI ops time out at 60 s; an older "running" claim belongs to a crashed request
 const RATINGS: Record<GradeRequest["rating"], Grade> = { again: Rating.Again, hard: Rating.Hard, good: Rating.Good, easy: Rating.Easy };
 
 export const toState = (c: Card): FsrsState => ({ due: iso(c.due), stability: c.stability, difficulty: c.difficulty, elapsed_days: c.elapsed_days,
@@ -51,41 +52,66 @@ export async function deleteCard(ctx: Ctx, id: string) {
 
 /**
  * Generates (or regenerates in place) THE generated card of an approved concept.
- * Same idempotencyKey => original card, no AI call. unique(concept_id) guarantees one card per concept even under races.
+ * The (user, idempotencyKey) claim is taken BEFORE the AI call: same key + same payload => original card (no AI call),
+ * in flight => 409, failed/stale => retried; different conceptId/expectedConceptRevision => 409.
+ * unique(concept_id) guarantees one card per concept even across different keys.
  */
 export async function generateCard(ctx: Ctx, input: CardGenerate) {
-  const replay = async () => {
-    const [g] = await ctx.db.select().from(cardGenerations).where(and(eq(cardGenerations.userId, ctx.userId), eq(cardGenerations.idempotencyKey, input.idempotencyKey)));
-    if (g && g.conceptId !== input.conceptId) throw conflict("Khóa idempotency đã được dùng cho khái niệm khác.");
-    return g ? toCard(await getCardRow(ctx.db, ctx.userId, g.cardId)) : undefined;
+  const keyWhere = and(eq(cardGenerations.userId, ctx.userId), eq(cardGenerations.idempotencyKey, input.idempotencyKey));
+  const findClaim = async () => (await ctx.db.select().from(cardGenerations).where(keyWhere))[0];
+  const replay = async (g: typeof cardGenerations.$inferSelect) => {
+    if (g.conceptId !== input.conceptId || g.expectedConceptRevision !== input.expectedConceptRevision) throw conflict("Khóa idempotency đã được dùng cho yêu cầu khác.");
+    return g.status === "completed" && g.cardId ? toCard(await getCardRow(ctx.db, ctx.userId, g.cardId)) : undefined;
   };
-  const prior = await replay();
-  if (prior) return prior;
   const assertReady = (c: typeof concepts.$inferSelect) => {
     if (c.status !== "approved") throw new ApiFailure("VALIDATION_ERROR", "Khái niệm cần được duyệt trước khi tạo thẻ.");
     if (c.revision !== input.expectedConceptRevision) throw conflict("Khái niệm đã được chỉnh sửa, vui lòng tải lại.");
   };
+
+  const prior = await findClaim();
+  const replayed = prior && await replay(prior);
+  if (replayed) return replayed;
   const concept = await getConcept(ctx.db, ctx.userId, input.conceptId);
   assertReady(concept);
-  const snapshot = { ...toConcept(concept), status: "approved" as const };
-  const sources = await sourceRevisionSnapshots(ctx.db, ctx.userId, concept.sourceRefs);
-  const generated = aiFlashcardSchema.parse(await withAi(ctx, "flashcard", () =>
-    ctx.ai.generateFlashcard({ requestId: ctx.requestId, signal: ctx.signal, sources, concepts: [snapshot], concept: snapshot })));
-  const refs = groundedRefs(generated.sourceRefs, sources);
-  const sourceRefs = refs.length ? refs : concept.sourceRefs;
   const now = nowOf(ctx);
-  return ctx.db.transaction(async tx => {
-    const [locked] = await tx.select().from(concepts).where(and(eq(concepts.id, concept.id), eq(concepts.userId, ctx.userId))).for("update");
-    if (!locked) throw notFound();
-    assertReady(locked); // re-check: concept may have changed during the AI call
-    const empty = createEmptyCard(now);
-    const [card] = await tx.insert(flashcards).values({ userId: ctx.userId, conceptId: concept.id, studySetId: concept.studySetId, front: generated.front, back: generated.back,
-      sourceRefs, scheduler: toState(empty), due: empty.due, createdAt: now, updatedAt: now })
-      .onConflictDoUpdate({ target: flashcards.conceptId, set: { front: generated.front, back: generated.back, sourceRefs, revision: sql`${flashcards.revision} + 1`, updatedAt: now } })
-      .returning();
-    await tx.insert(cardGenerations).values({ userId: ctx.userId, idempotencyKey: input.idempotencyKey, cardId: card.id, conceptId: concept.id }).onConflictDoNothing();
-    return toCard(card);
-  });
+  const [claimed] = prior
+    ? await ctx.db.update(cardGenerations).set({ status: "running", updatedAt: now })
+      .where(and(keyWhere, or(eq(cardGenerations.status, "failed"), and(eq(cardGenerations.status, "running"), lt(cardGenerations.updatedAt, new Date(now.getTime() - CLAIM_STALE_MS)))))).returning()
+    : await ctx.db.insert(cardGenerations).values({ userId: ctx.userId, idempotencyKey: input.idempotencyKey, conceptId: concept.id,
+      expectedConceptRevision: input.expectedConceptRevision, status: "running", createdAt: now, updatedAt: now }).onConflictDoNothing().returning();
+  if (!claimed) {
+    const winner = await findClaim();
+    const done = winner && await replay(winner);
+    if (done) return done;
+    throw conflict("Yêu cầu tạo thẻ này đang được xử lý.");
+  }
+
+  try {
+    const snapshot = { ...toConcept(concept), status: "approved" as const };
+    const sources = await sourceRevisionSnapshots(ctx.db, ctx.userId, concept.sourceRefs);
+    const generated = aiFlashcardSchema.parse(await withAi(ctx, "flashcard", () =>
+      ctx.ai.generateFlashcard({ requestId: ctx.requestId, signal: ctx.signal, sources, concepts: [snapshot], concept: snapshot })));
+    const refs = groundedRefs(generated.sourceRefs, sources);
+    const sourceRefs = refs.length ? refs : concept.sourceRefs;
+    throwIfAborted(ctx.signal);
+    return await ctx.db.transaction(async tx => {
+      throwIfAborted(ctx.signal);
+      const [locked] = await tx.select().from(concepts).where(and(eq(concepts.id, concept.id), eq(concepts.userId, ctx.userId))).for("update");
+      if (!locked) throw notFound();
+      assertReady(locked); // re-check: concept may have changed during the AI call
+      const at = nowOf(ctx), empty = createEmptyCard(at);
+      const [card] = await tx.insert(flashcards).values({ userId: ctx.userId, conceptId: concept.id, studySetId: concept.studySetId, front: generated.front, back: generated.back,
+        sourceRefs, scheduler: toState(empty), due: empty.due, createdAt: at, updatedAt: at })
+        .onConflictDoUpdate({ target: flashcards.conceptId, set: { front: generated.front, back: generated.back, sourceRefs, revision: sql`${flashcards.revision} + 1`, updatedAt: at } })
+        .returning();
+      await tx.update(cardGenerations).set({ status: "completed", cardId: card.id, updatedAt: at }).where(keyWhere);
+      throwIfAborted(ctx.signal);
+      return toCard(card);
+    });
+  } catch (e) {
+    await ctx.db.update(cardGenerations).set({ status: "failed", updatedAt: new Date() }).where(and(keyWhere, eq(cardGenerations.status, "running")));
+    throw e;
+  }
 }
 
 // ---------- time zones ----------

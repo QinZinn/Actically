@@ -98,6 +98,15 @@ export async function sourceRevisionSnapshots(db: Db, userId: string, refs: Sour
   return out;
 }
 
+/**
+ * Current sources of the set PLUS the exact (possibly older or deleted) revisions cited by the given concepts,
+ * deduped by sourceId@revision, so historical concept refs stay verifiable after source edits/deletes.
+ */
+export async function contextSources(db: Db, userId: string, studySetId: string | null, cited: { sourceRefs: SourceRef[] }[]) {
+  const all = [...await sourceSnapshots(db, userId, studySetId), ...await sourceRevisionSnapshots(db, userId, cited.flatMap(c => c.sourceRefs))];
+  return [...new Map(all.map(s => [`${s.sourceId}@${s.revision}`, s])).values()];
+}
+
 /** Every ref must point to an owned source revision in the same study set and quote it verbatim. */
 export async function verifySourceRefs(db: Db, userId: string, studySetId: string, refs: SourceRef[]) {
   for (const ref of refs) {

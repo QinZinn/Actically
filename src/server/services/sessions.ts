@@ -8,9 +8,9 @@ import { concepts, extractions, learningSessions, messages } from "@/db/schema";
 import type { ListParams } from "@/server/auth/route";
 import { AiServiceError } from "@/server/ai/errors";
 import { reserveAi, withAi } from "./ai-quota";
-import { iso, normalizeTitle, nowOf, type Ctx } from "./context";
+import { iso, normalizeTitle, nowOf, throwIfAborted, type Ctx } from "./context";
 import { ApiFailure, conflict, notFound, toApiError } from "./errors";
-import { approvedConceptSnapshots, getStudySet, sourceSnapshots, toConcept } from "./knowledge";
+import { approvedConceptSnapshots, contextSources, getStudySet, sourceSnapshots, toConcept } from "./knowledge";
 
 const HISTORY_LIMIT = 24;
 const STALE_MS = 2 * 60_000; // a "streaming"/"running" row older than this belongs to a crashed request
@@ -68,7 +68,8 @@ const SSE_HEADERS = { "Content-Type": "text/event-stream; charset=utf-8", "Cache
 
 function sseResponse(run: (send: (e: ChatEvent) => void, signal: AbortSignal) => Promise<void>, outer?: AbortSignal) {
   const abort = new AbortController();
-  outer?.addEventListener("abort", () => abort.abort(), { once: true });
+  if (outer?.aborted) abort.abort();
+  else outer?.addEventListener("abort", () => abort.abort(), { once: true });
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -116,18 +117,20 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
     }));
   } catch (e) { await release(); throw e; }
 
-  const history = (await sessionMessages(ctx.db, ctx.userId, sessionId))
-    .filter(m => m.status === "completed" && m.requestId !== input.requestId).slice(-HISTORY_LIMIT + 1);
-  const previousSolve = input.followUpStep ? [...history].reverse().find(m => m.solve)?.solve ?? null : null;
-  const base = { requestId: ctx.requestId, sources: await sourceSnapshots(ctx.db, ctx.userId, session.studySetId), concepts: await approvedConceptSnapshots(ctx.db, ctx.userId, session.studySetId) };
   const assistantWhere = and(eq(messages.id, assistant.id), eq(messages.status, "streaming"));
 
+  // Everything after the reservation runs inside run()'s try/finally: context errors mark the answer failed and release the slot.
   return sseResponse(async (send, signal) => {
-    const aiInput: AiChatInput = { ...base, signal, mode: input.mode, followUpStep: input.followUpStep, previousSolve,
-      messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: input.content }] };
     send({ event: "meta", data: { requestId: input.requestId, sessionId, userMessageId: userMsg.id, assistantMessageId: assistant.id } });
     let partial = "";
     try {
+      const history = (await sessionMessages(ctx.db, ctx.userId, sessionId))
+        .filter(m => m.status === "completed" && m.requestId !== input.requestId).slice(-HISTORY_LIMIT + 1);
+      const concepts = await approvedConceptSnapshots(ctx.db, ctx.userId, session.studySetId);
+      const aiInput: AiChatInput = { requestId: ctx.requestId, signal, sources: await contextSources(ctx.db, ctx.userId, session.studySetId, concepts), concepts,
+        mode: input.mode, followUpStep: input.followUpStep, previousSolve: input.followUpStep ? [...history].reverse().find(m => m.solve)?.solve ?? null : null,
+        messages: [...history.map(m => ({ role: m.role, content: m.content })), { role: "user" as const, content: input.content }] };
+      throwIfAborted(signal);
       let content: string | undefined, solve: SolveResult | null = null;
       if (input.mode === "solve") {
         solve = await ctx.ai.solve(aiInput);
@@ -139,7 +142,7 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
           else content = ev.content;
         }
       }
-      if (signal.aborted) throw new AiServiceError("AI_CANCELLED", "Yêu cầu đã bị huỷ.", true);
+      throwIfAborted(signal);
       if (content === undefined) throw new AiServiceError("AI_INVALID_OUTPUT", "AI không trả về kết quả hoàn chỉnh.", true);
       const [done] = await ctx.db.update(messages).set({ content, solve, status: "completed", updatedAt: new Date() }).where(assistantWhere).returning();
       if (!done) throw conflict();
@@ -188,11 +191,14 @@ export async function finishSession(ctx: Ctx, sessionId: string, { idempotencyKe
     const fresh = extracted.concepts.map(c => ({ ...c, title: c.title.trim(), body: c.body.trim(), sourceRefs: groundedRefs(c.sourceRefs, sources), normalizedTitle: normalizeTitle(c.title) }))
       .filter(c => c.sourceRefs.length > 0 && !seen.has(c.normalizedTitle) && seen.add(c.normalizedTitle));
     const duplicateWarnings = fresh.flatMap(c => existing.filter(e => e.normalizedTitle === c.normalizedTitle).map(e => ({ title: c.title, existingConceptId: e.id })));
+    throwIfAborted(ctx.signal);
     return await ctx.db.transaction(async tx => {
+      throwIfAborted(ctx.signal);
       const rows = fresh.length ? await tx.insert(concepts).values(fresh.map(c => ({ userId: ctx.userId, studySetId: session.studySetId!, title: c.title, body: c.body,
         normalizedTitle: c.normalizedTitle, sourceRefs: c.sourceRefs, status: "pending" as const, extractionId: claimed.id }))).returning() : [];
       await tx.update(extractions).set({ status: "completed", conceptIds: rows.map(r => r.id), duplicateWarnings, updatedAt: new Date() }).where(eq(extractions.id, claimed.id));
       await tx.update(learningSessions).set({ status: "ended", updatedAt: new Date() }).where(eq(learningSessions.id, sessionId));
+      throwIfAborted(ctx.signal); // rolls back if the client aborted mid-transaction
       return { concepts: rows.map(toConcept), duplicateWarnings };
     });
   } catch (e) {
