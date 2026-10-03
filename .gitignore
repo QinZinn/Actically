@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env*
+!.env.example
+.worktrees/
+/Board.md
+/coordination/
+/COORDINATION_ROOT.txt
