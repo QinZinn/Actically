@@ -2,7 +2,7 @@
 
 Vietnamese learning workspace. One Next.js App Router application, Supabase Auth/PostgreSQL, Drizzle, FSRS review and server-side NVIDIA Nemotron on Nebius Token Factory. Original product instructions live in `docs/actically-parallel-kit/`; `Actically Mockups.html` is the preserved visual reference.
 
-The bootstrap, contracts and provider implementation are ready; final frontend/backend integration is in progress. The coordinator is awaiting frozen worker handoffs and recorded cross-layer product checks. See root Board.md for current repair requests, docs/OWNERSHIP.md for boundaries, docs/API-CONTRACT.md for executable contracts and docs/AI-INTEGRATION.md for provider safety. Missing provider credentials produce an explicit unavailable response.
+The backend and AI are integrated, and Codex completed the remaining frontend after the owner authorized takeover following Trae's usage limit. Local typecheck, lint and production build pass; 117 tests pass and two opt-in live tests are skipped. Browser interaction/layout checks and real Supabase/Nebius checks remain unverified. See [integration handoff](docs/handoffs/integration.md), root Board.md, [ownership](docs/OWNERSHIP.md), [API contracts](docs/API-CONTRACT.md) and [AI integration](docs/AI-INTEGRATION.md). Missing provider credentials produce an explicit unavailable response.
 
 ## Local setup
 
@@ -43,4 +43,4 @@ No service has been provisioned, purchased, published or deployed automatically.
 
 ## Architecture and validation
 
-[ARCHITECTURE.md](docs/ARCHITECTURE.md), [API-CONTRACT.md](docs/API-CONTRACT.md), [OWNERSHIP.md](docs/OWNERSHIP.md), [INTEGRATION-CHECKLIST.md](docs/INTEGRATION-CHECKLIST.md) and the final handoff under docs/handoffs describe boundaries, data integrity and exact checks. [ORIGINAL-WORK.md](docs/ORIGINAL-WORK.md) records the preserved owner inputs and original implementation history. Completion requires explicit frozen worker handoffs and integrated product checks; provider code readiness alone is not product completion.
+[ARCHITECTURE.md](docs/ARCHITECTURE.md), [API-CONTRACT.md](docs/API-CONTRACT.md), [OWNERSHIP.md](docs/OWNERSHIP.md), [INTEGRATION-CHECKLIST.md](docs/INTEGRATION-CHECKLIST.md) and [integration handoff](docs/handoffs/integration.md) describe boundaries, data integrity and exact checks. [ORIGINAL-WORK.md](docs/ORIGINAL-WORK.md) records preserved owner inputs and implementation history. The owner-authorized frontend takeover supersedes the new Trae handoff gate for this repair round. The root remains INTEGRATING until the required browser product checks are recorded; live-service gaps are reported separately.

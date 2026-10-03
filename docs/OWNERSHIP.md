@@ -21,3 +21,7 @@ Only Codex changes dependencies, config or contracts. Request changes with a uni
 - `src/server/composition.ts` exports `getAiLearningService()`. Backend can inject the interface in service tests; never implement another provider.
 
 Workers install their own node_modules using `pnpm install --frozen-lockfile`; the lockfile is shared, node_modules is not. Leave worktrees available after handoff. Handoff requires final SHA, clean/dirty state, test results, known gaps and READY_FOR_INTEGRATION; then freeze.
+
+## Owner-authorized frontend takeover, 2026-10-03
+
+After Trae reached Usage Limit, the owner explicitly authorized Codex to finish its remaining frontend. Codex captured the stopped frontend's incomplete edits, merged its history normally and completed repairs only in the coordinator root. Code commit `fc04dd70eb788d5c0cbe18b707e8eed47c75980b` includes the repaired frontend and integrated checks. This authorization supersedes waiting for a new Trae handoff for this round; it does not permit editing worker checkouts or their Boards. The ownership table remains the historical parallel boundary. Both worktrees and original inputs remain preserved; current handoff is `docs/handoffs/frontend-takeover.md`.

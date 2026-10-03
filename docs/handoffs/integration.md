@@ -1,41 +1,58 @@
-# Integration handoff — in progress
+# Integration handoff — local code complete, browser checks pending
 
-Status: **INTEGRATING — NOT INTEGRATED**. The frozen backend has been merged and locally tested. The first frontend handoff still needs the repairs recorded on the root Board.
+Status: **INTEGRATING — NOT INTEGRATED**. Backend, AI and the user-authorized frontend takeover are committed and locally verified. Required browser interaction/layout checks remain pending permission. Live Supabase/Nebius checks are unverified because local configuration is absent.
 
-Canonical root: `C:\Users\zin53\Projects\Actically`. Original instructions: `docs/actically-parallel-kit/`. Preserved mockup: `Actically Mockups.html` (SHA-256 `BFBF4D855CF77671739291B1AA624FDB5B27121E92DE983226C974A3006258F2`). Original documents/mockup and worker-created decode helpers have been left in place, outside the app bootstrap commits.
+Canonical root: `C:\Users\zin53\Projects\Actically`, branch `coordinator/integration`. Original instructions are in `docs/actically-parallel-kit/`. The original kit, `Actically Mockups.html` and worker-created decode helpers remain preserved in place, outside app commits. Mockup SHA-256: `BFBF4D855CF77671739291B1AA624FDB5B27121E92DE983226C974A3006258F2`.
 
-## Commits and handoff gates
+## Integrated history and takeover authorization
 
-- Bootstrap: `f57486857d8122b52120bb4ec6c22dab4210e6b5`, both worker worktrees created from this exact SHA; BOOTSTRAP_READY published before full provider implementation.
-- Compatible contract patch: `084367a23223df1f6926ce7504e5e9f1eb5d7874` (1.0.1, manual concept cards).
-- Drizzle authority config: `c64b6b1a4b53eff2316fef93801a5313a9e7dcf3`.
-- AI implementation: `6f87385801089c84be11b3ee5fd5935db4af29b5`, all six service operations, metadata and bounded provider/evidence checks.
-- Verified runtime requirement: `8764870a29786e50c1280a1a99f5a66e2947ee6b` (Node 24).
-- Compatible immutable message retry context: `4305ac0e04c39f2dcec00cf9846d467edc0d43ac` (contract 1.0.2).
-- Synthetic transport prepared for the full cross-layer journey: `94c3649de85f47208a411ba9de6afb6d28fad869`.
-- Trae: `agent/frontend`, `.worktrees/frontend`, READY_FOR_INTEGRATION at `8a09e808fa17ebf30edd70e056fee5338df117af`; actual HEAD matches, tracked tree clean and explicitly frozen. This handoff is not accepted as final: CODEX-FE-002..006 and shared 1.0.2 remain unacknowledged, with the reported bugs still present. CODEX-FE-007 requests a repair round and a new tested frozen SHA.
-- Claude: `agent/backend`, `.worktrees/backend`, READY_FOR_INTEGRATION repair round 2 at `b5520ba26f10063901a4185b46ff89bfb08a0186`; actual HEAD matches, tracked tree clean and explicitly frozen. CODEX-BE-002..007 are resolved. Ordinary merge commit `d6b89a4cd1d820900181cc888af7ee814ed4d312` preserves both histories and includes migrations 0000–0002. Earlier backend handoffs are superseded.
+| Checkpoint | Exact SHA |
+| --- | --- |
+| Bootstrap; both worker worktrees started here, BOOTSTRAP_READY published early | `f57486857d8122b52120bb4ec6c22dab4210e6b5` |
+| AI provider implementation | `6f87385801089c84be11b3ee5fd5935db4af29b5` |
+| Compatible immutable chat request context, contract 1.0.2 | `4305ac0e04c39f2dcec00cf9846d467edc0d43ac` |
+| Accepted, explicitly frozen backend repair round 2 | `b5520ba26f10063901a4185b46ff89bfb08a0186` |
+| Ordinary backend merge | `d6b89a4cd1d820900181cc888af7ee814ed4d312` |
+| Initial real-handler/PGlite/provider synthetic journey | `2551882631b8d62ac0a6cbf0a8574d32ae319488` |
+| Stopped Trae HEAD, including compatible shared patches | `0f53577d5b4072444bafc180a0b5f3899cf4ec1b` |
+| Ordinary merge of stopped Trae history for authorized takeover | `57225371321533ee6e244f97eee6b8660f1b2450` |
+| Completed frontend takeover and integrated checks | `fc04dd70eb788d5c0cbe18b707e8eed47c75980b` |
 
-## Checks actually executed so far
+The owner explicitly asked Codex to finish the frontend after Trae hit Usage Limit and supplied its logs. This supersedes the normal requirement to await a new Trae repair handoff for this takeover only. Trae's first `8a09e80` handoff was not accepted as complete; known FE repair requests were still present.
 
-Coordinator scaffold + provider: typecheck PASS, lint PASS, production build PASS, peer compatibility PASS, **25 offline tests PASS**, **2 live tests SKIPPED**. The latest contract/transport preparation also passed typecheck/lint. Tests cover trust boundaries, model/provider config, catalog matching, structured schemas, source/concept/quote/revision/offset integrity, mode behavior, hidden trace handling, truncation, retry/429, abort/timeout/concurrency, neutral evidence, approved card provenance and backwards-compatible retry metadata.
+Before takeover, Codex captured the ten incomplete tracked frontend repairs as `coordination/ai/trae-incomplete.patch`, ordinary-merged the stopped history, applied the captured patch to the coordinator root and finished implementation there. No replacement frontend worker was created. Worker checkouts and worker Boards were not edited by Codex. The historical frontend handoff remains unchanged; see [frontend takeover](frontend-takeover.md) for current behavior.
 
-After the backend merge, typecheck/lint/production build PASS and the combined provider/backend suite passes **62 offline tests**, with **2 live tests skipped**. One additional real-handler journey test passes: HTTP Request/Response → authenticated-identity shim → PGlite migrations → actual NebiusLearningService using synthetic transport. It saves source/set, Socratic chat/replay, pending extraction/approval/card, presentation/grade/progress, structured Solve/step follow-up, Feynman/Blurting with historical source revisions, targeted study and reopened history; it rejects changed retry payload, cross-user IDs, unauthenticated requests and body userId. This is an in-process handler check; the frontend adapter/browser/full UI still awaits integration.
+At the final checkpoint, `.worktrees/backend` remains clean and frozen at `b5520ba`; `.worktrees/frontend` remains at `0f53577` with its same ten incomplete tracked edits. These edits are retained for recovery, not a pending dependency of the finished root frontend. Keep both worktrees available.
 
-Catalog CLI with absent configuration returns AI_NOT_CONFIGURED without a call. These results do not establish live NVIDIA Nemotron quality or account capability. PGlite plus the auth shim does not establish live Supabase authentication/cookie behavior.
+## Repairs and behavior
 
-Browser reference inspection at `http://127.0.0.1:4317/` was **denied by the browser permission policy**. The agent did not use an alternate browser/CDP/shell workaround; the read-only preview helper was stopped. Screenshot/layout interaction checks have NOT run. Static mockup/source inspection is separate from browser validation.
+CODEX-BE-002..007 are resolved in the accepted backend: historical source snapshots, cancellation and quota cleanup, bounded request bodies, persistent generation claims, preserved review/practice history on removal, and full immutable chat replay context. Migrations 0000–0002 are the single committed migration authority.
 
-## Open integration work
+CODEX-FE-002..007 are implemented in the takeover: frozen API paths and validated envelopes; bounded, correlated JSON/SSE parsing with reader cancellation; exact chat retry and finish keys; route cleanup and cancelled state; one shared client; hidden Blurting references, one real study set and distinct transport/evaluation/rewrite retries; real profile/search/history/logout/navigation. Cookie-based sign-in/signup, source/concept/card management, review grade retry, progress evidence, drafts and explicit demo behavior were completed alongside them. No package, lockfile or public contract changes were needed. Shared pure FSRS/progress logic keeps demo and backend rules aligned.
 
-Backend repairs are resolved. CODEX-FE-002..006 cover HTTP path parity, honest bounded JSON/SSE failures, exact chat retry, cancel/finish lifecycle, one shared client instance, hidden Blurting references, one-set selection and distinct transport/evaluation/rewrite retries. CODEX-FE-007 consolidates the repair gate and adds the still-unwired global search/profile/recent sessions/logout and invalid /sessions/new navigation. Await a new tested frozen frontend handoff. Trae must save owned edits, then apply 084367a followed by 4305ac0 to move from its 1.0.0 contract to 1.0.2.
+## Checks actually executed
 
-Then verify the new frontend head and dirty state, merge normally, extend the handler journey with the actual HTTP client adapter, and exercise the complete product/UI loop. Finish whole-product typecheck/lint/build and authorized browser desktop/narrow checks. Record exact results and remaining external gaps.
+On the integrated code at `fc04dd7`, 2026-10-03, Node 24.19 / pnpm 11.19:
 
-## Unexecuted external checks
+| Check | Result |
+| --- | --- |
+| `pnpm typecheck` | PASS |
+| `pnpm lint` | PASS, zero errors/warnings |
+| `pnpm test` | 117 PASS, 2 live SKIPPED; 16 files passed, 1 skipped |
+| `pnpm build` | PASS, production build with workspace pages and API routes |
+| `pnpm exec vitest run tests/frontend`, repeated after line-ending normalization | 53 PASS, 9 files |
+| Staged whitespace check and tracked coordinator state after code commit | PASS / clean |
 
-No local NEBIUS_API_KEY/NEBIUS_MODEL/DATABASE_URL/public Supabase configuration was present. Live account catalog, generation/schema/streaming/educational quality, real Supabase auth/cookies/migration/PostgREST RLS and live persisted browser journey remain **UNVERIFIED**. No paid resources, remote migrations, publishing, deployment or submission have been performed. Keep both worktrees available.
+The integration tests include the **production HttpAdapter → actual route handlers → verified-identity shim → PGlite with real migrations → actual Nemotron service with synthetic injected transport**. They drive the typed method surface, source/set/session CRUD, search/history, chat/Solve/step follow-up and replay conflicts, extraction/approval/cards, presentation/grade/progress, Feynman/Blurting evaluation and rewrite history, soft deletion and unauthenticated rejection. Existing backend tests also cover cross-user ownership, quotas and concurrent claims.
 
-If this turn ends before handoffs: “Read C:\Users\zin53\Projects\Actically\Board.md and all coordination/*/Board.md; continue 03-CODEX.md, finish open requests, verify new frozen handoff SHAs, integrate with ordinary merges, then run and record the complete product checks.” Do not replace the independent workers or infer readiness from elapsed time.
+Frontend tests cover real streamed Response bodies, UTF-8 fragments/CRLF, malformed/truncated/mismatched responses, typed errors, size bounds and abort/reader cleanup; demo lifecycle and immutable retry conflicts; pagination and timezone boundaries; hidden review/Blurting content, source provenance and accessible markup. SSR checks do not establish interactive effect, navigation or responsive-layout behavior.
 
-If Trae is dormant, the owner can resume it with: “Read the canonical root Board.md; acknowledge CODEX-FE-007, resolve CODEX-FE-002..006 and CODEX-SHARED-002, run checks and publish a NEW explicit frozen handoff SHA.” Board writes alone do not wake a stopped worker. Claude can stay frozen at its accepted round-2 handoff. No worker checkout has been edited by Codex.
+These are local, in-process tests. They do not verify actual browser cookies, live Supabase/PostgREST, TCP transport, or real model educational quality. Synthetic replies are labelled fixtures, not live Nemotron results.
+
+## Remaining validation and exact resume
+
+Browser reference access to `http://127.0.0.1:4317/` was explicitly denied. Codex requested renewed user authorization for localhost browser checks during this takeover; no answer has arrived at this checkpoint. No browser, raw CDP or shell automation workaround was used. Screenshots and interactive desktop/narrow checks have **not run**.
+
+No local `DATABASE_URL`, public Supabase configuration, `NEBIUS_API_KEY` or `NEBIUS_MODEL` was present. Real signup/sign-in/cookies, migration/RLS via PostgREST, persisted browser journey, authenticated model catalog and bounded live generation/schema/streaming/educational fixtures remain **UNVERIFIED**. Keep secrets in local configuration, never chat or Boards. No remote migration, provisioning, publication, deployment or submission occurred.
+
+Resume by reading canonical root Board.md and coordination Boards, then this handoff and 03-CODEX.md. Current frontend code is complete locally; do not wait for another Trae handoff or overwrite its checkout. After explicit browser authorization, compare the original mockup and actual application at 1440×900 and a narrow viewport (375 px), exercising navigation, keyboard focus, layout/composer, loading/errors, cancel/retry, reference hiding and reveal-before-grade. With properly configured local services and allowed bounded usage, execute the live Supabase/Nemotron checks separately. Record results and any repairs before marking the root INTEGRATED.

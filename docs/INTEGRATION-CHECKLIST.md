@@ -32,3 +32,9 @@ UI interaction and screenshot checks at 1440×900 and at least one narrow viewpo
 With configured local secrets and authorized bounded usage: authenticated account catalog, exact Nemotron model, structured output/streaming and synthetic correct/partial/incorrect live fixture suite; real Supabase signup/sign-in/cookies, migration, RLS via PostgREST and persisted product journey. Credentials must stay out of Board/chat/logs. No paid resource provisioning or publishing/deployment/submission.
 
 English README with local/run/production setup, env placeholders, one migration authority and optional fixture seed, architecture, NVIDIA/Nebius usage notes, demo script, suggested MIT owner review, original-work record and docs/handoffs/integration.md. Keep worktrees available.
+
+## Recorded checkpoint, 2026-10-03
+
+Code `fc04dd70eb788d5c0cbe18b707e8eed47c75980b` integrates accepted backend `b5520ba`, AI and the owner-authorized frontend takeover. This authorization replaces the new Trae repair handoff requirement for this round; worker checkouts remain preserved. Typecheck, lint (zero warnings/errors) and production build PASS; 117 tests PASS / 2 opt-in live tests SKIPPED. Frontend suite repeated after line-ending normalization: 53 PASS. The production HttpAdapter drives actual route handlers/PGlite migrations/real provider validation with synthetic transport.
+
+Required browser interaction/layout checks have not run: earlier access was denied and renewed user authorization is pending. Real Supabase/Nebius configuration is absent, so live cookies/RLS/persistence/catalog/model quality remain unverified. Root remains INTEGRATING. See `docs/handoffs/integration.md` and `docs/handoffs/frontend-takeover.md` for test scope and exact resume steps.
