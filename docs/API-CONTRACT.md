@@ -1,4 +1,6 @@
-# Actically API contract — 1.0.0
+# Actically API contract — 1.0.1
+
+Revision 1.0.1 is backward compatible: AI flashcard sourceRefs may be empty only for an approved manually authored concept with no source provenance. Provider verifies that generated sourceRefs match the approved concept and supplied source snapshots. DTOs/client methods are unchanged.
 
 Executable authority: `src/contracts/index.ts` (Zod 4 strict schemas + inferred DTOs), `client.ts` (ActicallyClient). Every nullable field is explicit; `solve` is null for non-Solve messages. No body userId. IDs are opaque strings; timestamps ISO UTC. API namespace `/api/v1`. JSON success `{ data: T }`, errors `{ error: { code, message, requestId, retryable } }`; DELETE returns `{ data: null }`. Client adapters unwrap data and throw typed errors. Do not change response shape in a worker branch.
 
