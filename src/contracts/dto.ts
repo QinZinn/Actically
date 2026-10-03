@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CONTRACT_REVISION = "1.0.0";
+export const CONTRACT_REVISION = "1.0.1";
 export const idSchema = z.string().min(1).max(128);
 export const timestampSchema = z.iso.datetime();
 export const revisionSchema = z.number().int().positive();

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src tests",
     "test": "vitest run",
+    "test:ai:live": "node --env-file-if-exists=.env.local node_modules/vitest/vitest.mjs run tests/ai/live.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
