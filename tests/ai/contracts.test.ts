@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chatRequestSchema, gradeRequestSchema, profileUpdateSchema } from "@/contracts";
+import { chatRequestSchema, gradeRequestSchema, profileUpdateSchema, messageSchema } from "@/contracts";
 import { unconfiguredAi } from "@/server/ai/unconfigured";
 describe("shared trust boundaries", () => {
   it("rejects client identity and invalid revisions/timezones", () => {
@@ -9,5 +9,11 @@ describe("shared trust boundaries", () => {
   });
   it("never fakes AI success when unconfigured", async () => {
     await expect(unconfiguredAi.solve({ requestId: "r", sources: [], concepts: [], mode: "solve", messages: [], followUpStep: null, previousSolve: null })).rejects.toMatchObject({ code: "AI_NOT_CONFIGURED", retryable: false });
+  });
+  it("keeps legacy messages compatible while validating reloadable retry context", () => {
+    const message = { id: "a", sessionId: "s", role: "assistant", content: "", status: "failed", solve: null, requestId: "r", createdAt: "2026-10-03T00:00:00Z", updatedAt: "2026-10-03T00:00:00Z" };
+    expect(messageSchema.safeParse(message).success).toBe(true);
+    expect(messageSchema.safeParse({ ...message, requestContext: { mode: "solve", followUpStep: 1 } }).success).toBe(true);
+    expect(messageSchema.safeParse({ ...message, requestContext: { mode: "solve", followUpStep: 99 } }).success).toBe(false);
   });
 });

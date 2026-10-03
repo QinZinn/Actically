@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CONTRACT_REVISION = "1.0.1";
+export const CONTRACT_REVISION = "1.0.2";
 export const idSchema = z.string().min(1).max(128);
 export const timestampSchema = z.iso.datetime();
 export const revisionSchema = z.number().int().positive();
@@ -28,7 +28,7 @@ export const conceptSchema = z.strictObject({ id: idSchema, studySetId: idSchema
 export const sessionSchema = z.strictObject({ id: idSchema, studySetId: idSchema.nullable(), title: z.string().min(1).max(200), mode: studyModeSchema, status: z.enum(["active", "ended"]), ...dates });
 export const solveStepSchema = z.strictObject({ number: z.number().int().positive(), action: z.string().min(1).max(2000), explanation: z.string().min(1).max(4000), principle: z.string().min(1).max(2000) });
 export const solveResultSchema = z.strictObject({ steps: z.array(solveStepSchema).min(1).max(12), comprehensionCheck: z.string().min(1).max(2000), sourceRefs: z.array(sourceRefSchema).max(20) });
-export const messageSchema = z.strictObject({ id: idSchema, sessionId: idSchema, role: z.enum(["user", "assistant"]), content: z.string().max(32000), status: z.enum(["pending", "streaming", "completed", "failed", "cancelled"]), solve: solveResultSchema.nullable(), requestId: idSchema, ...dates });
+export const messageSchema = z.strictObject({ id: idSchema, sessionId: idSchema, role: z.enum(["user", "assistant"]), content: z.string().max(32000), status: z.enum(["pending", "streaming", "completed", "failed", "cancelled"]), solve: solveResultSchema.nullable(), requestId: idSchema, requestContext: z.strictObject({ mode: studyModeSchema, followUpStep: z.number().int().min(1).max(12).nullable() }).nullable().optional(), ...dates });
 export const practiceAttemptSchema = z.strictObject({ id: idSchema, kind: practiceKindSchema, studySetId: idSchema, learnerText: z.string().min(1).max(16000), referenceSnapshots: z.array(conceptRefSchema).min(1).max(30), status: z.enum(["submitted", "evaluating", "evaluated", "failed"]), retryOfId: idSchema.nullable(), ...dates });
 const evaluationBase = { sufficientEvidence: z.boolean(), summary: z.string().min(1).max(4000), observations: z.array(findingSchema).max(30) };
 const score = z.number().min(1).max(10).nullable();
