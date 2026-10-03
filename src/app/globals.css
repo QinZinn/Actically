@@ -12,6 +12,21 @@
   --sidebar-foreground: #F2F5EE; --sidebar-primary: #76B900; --sidebar-primary-foreground: #0B0D0A;
   --sidebar-accent: #20261D; --sidebar-accent-foreground: #F2F5EE; --sidebar-border: #30382B; --sidebar-ring: #8BD620;
   --radius: .75rem;
+  --error: #E58A85;
+  --warn: #E0B566;
+  --info: #91AFCB;
+  --card-shadow: 0 10px 40px rgba(0,0,0,.5);
+  --badge-count-bg: rgba(118,185,0,.14);
+  --focus-halo: rgba(118,185,0,.18);
+  --error-bg: rgba(229,138,133,.07);
+  --error-border: rgba(229,138,133,.3);
+  --error-badge: rgba(229,138,133,.4);
+  --warn-bg: rgba(224,181,102,.13);
+  --warn-dashed: rgba(224,181,102,.5);
+  --info-bg: rgba(145,175,203,.13);
+  --info-border: rgba(145,175,203,.35);
+  --nodata-bg: rgba(126,137,119,.13);
+  --shadow-card: rgba(0,0,0,.5);
 }
 @theme inline {
   --color-background: var(--background); --color-foreground: var(--foreground);
@@ -27,8 +42,68 @@
   --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border); --color-sidebar-ring: var(--sidebar-ring);
   --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius);
+  --color-error: var(--error);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+  --color-success: var(--primary);
+  --spacing-2: 2px;
+  --spacing-3: 3px;
+  --spacing-4: 4px;
+  --spacing-5: 5px;
+  --spacing-6: 6px;
+  --spacing-8: 8px;
+  --spacing-9: 9px;
+  --spacing-10: 10px;
+  --spacing-11: 11px;
+  --spacing-12: 12px;
+  --spacing-13: 13px;
+  --spacing-14: 14px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-22: 22px;
+  --spacing-28: 28px;
+  --spacing-29: 29px;
+  --spacing-34: 34px;
+  --spacing-40: 40px;
+  --spacing-48: 48px;
+  --spacing-56: 56px;
+  --radius-2: 2px;
+  --radius-4: 4px;
+  --radius-5: 5px;
+  --radius-6: 6px;
+  --radius-7: 7px;
+  --radius-8: 8px;
+  --radius-9: 9px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-14: 14px;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 15px;
+  --font-size-2xl: 16px;
+  --font-size-3xl: 17px;
+  --font-size-4xl: 18px;
+  --font-size-5xl: 19px;
 }
 * { box-sizing: border-box; border-color: var(--border); }
-body { margin: 0; background: var(--background); color: var(--foreground); font-family: "Be Vietnam Pro", "Segoe UI", sans-serif; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Be Vietnam Pro", "Segoe UI", sans-serif;
+  min-height: 100vh;
+  font-feature-settings: normal;
+}
+html.dark {
+  color-scheme: dark;
+}
 :focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
 a { color: var(--primary); }
+
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.sidebar-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+.sidebar-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
