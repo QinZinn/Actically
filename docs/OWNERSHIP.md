@@ -6,7 +6,7 @@ Canonical project: `C:\Users\zin53\Projects\Actically`. Shared instructions are 
 | --- | --- |
 | Trae Solo | `src/app/(workspace)/**`, `src/app/(auth)/login/**`, `src/app/globals.css`, `src/components/**`, `src/features/**`, `src/lib/client/**`, `tests/frontend/**`, frontend assets, `docs/handoffs/frontend.md` |
 | Claude Code | `src/app/api/**`, `src/app/auth/**`, `src/server/services/**`, `src/server/repositories/**`, `src/server/auth/**`, `src/db/**`, `tests/backend/**`, `docs/handoffs/backend.md` |
-| Codex | `src/contracts/**`, `src/server/ai/**`, `src/server/composition.ts`, `src/proxy.ts`, `src/app/layout.tsx`, package manifest/lockfile, shared config, `.env.example`, `tests/ai/**`, `tests/integration/**`, shared docs, README |
+| Codex | `src/contracts/**`, `src/server/ai/**`, `src/server/composition.ts`, `src/proxy.ts`, `src/app/layout.tsx`, package manifest/lockfile, shared config, `.env.example`, `scripts/**`, `tests/ai/**`, `tests/integration/**`, shared docs, README |
 
 Only Codex changes dependencies, config or contracts. Request changes with a unique Board ID; apply isolated shared commits only after saving your work. Do not edit another checkout. During INTEGRATING, workers freeze and Codex can repair integrated code.
 
