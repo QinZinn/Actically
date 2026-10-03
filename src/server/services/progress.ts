@@ -1,4 +1,4 @@
-import { and, desc, eq, exists, ilike, or } from "drizzle-orm";
+import { and, desc, eq, exists, ilike, isNull, or } from "drizzle-orm";
 import type { TopicProgress } from "@/contracts/dto";
 import type { GradeRequest } from "@/contracts/requests";
 import { concepts, flashcards, learningSessions, messages, practiceAttempts, practiceEvaluations, reviewEvents, studySets } from "@/db/schema";
@@ -35,8 +35,8 @@ export function topicStatus(cards: ProgressStatus[]): ProgressStatus {
 export async function getProgress(ctx: Ctx): Promise<TopicProgress[]> {
   const mine = ctx.userId;
   const [sets, cards, events, evaluations] = await Promise.all([
-    ctx.db.select().from(studySets).where(eq(studySets.userId, mine)).orderBy(desc(studySets.updatedAt)),
-    ctx.db.select({ id: flashcards.id, studySetId: flashcards.studySetId }).from(flashcards).where(eq(flashcards.userId, mine)),
+    ctx.db.select().from(studySets).where(and(eq(studySets.userId, mine), isNull(studySets.deletedAt))).orderBy(desc(studySets.updatedAt)),
+    ctx.db.select({ id: flashcards.id, studySetId: flashcards.studySetId }).from(flashcards).where(and(eq(flashcards.userId, mine), isNull(flashcards.deletedAt))), // removed cards are not "active"
     // ponytail: loads every review event of the user; switch to row_number() over (partition by card_id) when histories get large.
     ctx.db.select().from(reviewEvents).where(eq(reviewEvents.userId, mine)).orderBy(desc(reviewEvents.reviewedAt)),
     ctx.db.select({ attemptId: practiceAttempts.id, studySetId: practiceAttempts.studySetId, kind: practiceAttempts.kind, result: practiceEvaluations.result, createdAt: practiceEvaluations.createdAt })
@@ -71,6 +71,6 @@ export async function search(ctx: Ctx, q: string) {
   const sessions = await ctx.db.select().from(learningSessions)
     .where(and(eq(learningSessions.userId, ctx.userId), or(ilike(learningSessions.title, p), inMessages))).orderBy(desc(learningSessions.updatedAt)).limit(20);
   const conceptRows = await ctx.db.select().from(concepts)
-    .where(and(eq(concepts.userId, ctx.userId), or(ilike(concepts.title, p), ilike(concepts.body, p)))).orderBy(desc(concepts.updatedAt)).limit(20);
+    .where(and(eq(concepts.userId, ctx.userId), isNull(concepts.deletedAt), or(ilike(concepts.title, p), ilike(concepts.body, p)))).orderBy(desc(concepts.updatedAt)).limit(20);
   return { sessions: sessions.map(toSession), concepts: conceptRows.map(toConcept) };
 }

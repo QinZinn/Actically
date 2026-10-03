@@ -30,6 +30,7 @@ export const studySets = pgTable("study_sets", {
   id: id(), userId: owner(),
   subject: text("subject").notNull(), title: text("title").notNull(), description: text("description").notNull().default(""),
   revision: integer("revision").notNull().default(1),
+  deletedAt: ts("deleted_at"), // soft delete: reviews/attempts/evaluations under it stay stored
   ...dates(),
 }, t => [ownerKey(t), index().on(t.userId, t.updatedAt), ownRead(t)]);
 
@@ -55,6 +56,7 @@ export const concepts = pgTable("concepts", {
   sourceRefs: jsonb("source_refs").$type<SourceRef[]>().notNull().default([]),
   revision: integer("revision").notNull().default(1),
   extractionId: uuid("extraction_id"),
+  deletedAt: ts("deleted_at"), // soft delete keeps its card + review history
   ...dates(),
 }, t => [ownerKey(t), foreignKey({ columns: [t.studySetId, t.userId], foreignColumns: [studySets.id, studySets.userId] }).onDelete("cascade"),
   index().on(t.userId, t.studySetId, t.status), index().on(t.userId, t.normalizedTitle), ownRead(t)]);
@@ -73,6 +75,9 @@ export const messages = pgTable("messages", {
   status: text("status", { enum: ["pending", "streaming", "completed", "failed", "cancelled"] }).notNull(),
   solve: jsonb("solve").$type<SolveResult>(),
   requestId: text("request_id").notNull(),
+  // Immutable original request context; replay of a requestId must match content + mode + followUpStep. Null only for legacy rows.
+  mode: text("mode", { enum: ["socratic", "solve", "ask"] }),
+  followUpStep: integer("follow_up_step"),
   ...dates(),
 }, t => [unique().on(t.sessionId, t.requestId, t.role), foreignKey({ columns: [t.sessionId, t.userId], foreignColumns: [learningSessions.id, learningSessions.userId] }).onDelete("cascade"),
   index().on(t.sessionId, t.createdAt), ownRead(t)]);
@@ -113,8 +118,9 @@ export const flashcards = pgTable("flashcards", {
   revision: integer("revision").notNull().default(1),
   scheduler: jsonb("scheduler").$type<FsrsState>().notNull(),
   due: ts("due").notNull(),
+  deletedAt: ts("deleted_at"), // soft delete: review_events stay append-only
   ...dates(),
-}, t => [ownerKey(t), uniqueIndex().on(t.conceptId), foreignKey({ columns: [t.conceptId, t.userId], foreignColumns: [concepts.id, concepts.userId] }).onDelete("cascade"),
+}, t => [ownerKey(t), uniqueIndex("flashcards_active_concept_unique").on(t.conceptId).where(sql`deleted_at is null`), foreignKey({ columns: [t.conceptId, t.userId], foreignColumns: [concepts.id, concepts.userId] }).onDelete("cascade"),
   foreignKey({ columns: [t.studySetId, t.userId], foreignColumns: [studySets.id, studySets.userId] }).onDelete("cascade"), index().on(t.userId, t.due), ownRead(t)]);
 
 // Idempotency claim taken BEFORE the AI call: running → completed (card_id set) | failed (retryable). Defaults keep 0000-era rows valid.

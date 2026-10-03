@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, ne, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import { aiExtractionSchema, type AiChatInput, type SourceSnapshot } from "@/contracts/ai";
 import type { LearningSession, Message, SolveResult, SourceRef } from "@/contracts/dto";
 import type { ChatRequest, ExtractionRequest, SessionCreate, SessionUpdate } from "@/contracts/requests";
@@ -18,7 +18,8 @@ const STALE_MS = 2 * 60_000; // a "streaming"/"running" row older than this belo
 type SessionRow = typeof learningSessions.$inferSelect;
 type MessageRow = typeof messages.$inferSelect;
 export const toSession = (r: SessionRow): LearningSession => ({ id: r.id, studySetId: r.studySetId, title: r.title, mode: r.mode, status: r.status, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) });
-export const toMessage = (r: MessageRow): Message => ({ id: r.id, sessionId: r.sessionId, role: r.role, content: r.content, status: r.status, solve: r.solve ?? null, requestId: r.requestId, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) });
+export const toMessage = (r: MessageRow): Message => ({ id: r.id, sessionId: r.sessionId, role: r.role, content: r.content, status: r.status, solve: r.solve ?? null, requestId: r.requestId,
+  requestContext: r.mode ? { mode: r.mode, followUpStep: r.followUpStep } : null, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) });
 
 export async function getSessionRow(db: Db, userId: string, id: string) {
   const [row] = await db.select().from(learningSessions).where(and(eq(learningSessions.id, id), eq(learningSessions.userId, userId)));
@@ -92,7 +93,9 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
   const prevUser = pair.find(m => m.role === "user"), prevAssistant = pair.find(m => m.role === "assistant");
   const now = nowOf(ctx);
   if (prevUser && prevAssistant) {
-    if (prevUser.content !== input.content) throw conflict("requestId đã được dùng cho nội dung khác.");
+    // The whole immutable request must match; legacy rows without a stored mode can never be replayed as "identical".
+    if (prevUser.content !== input.content || prevUser.mode !== input.mode || prevUser.followUpStep !== input.followUpStep)
+      throw conflict("requestId đã được dùng cho yêu cầu khác.");
     const meta: ChatEvent = { event: "meta", data: { requestId: input.requestId, sessionId, userMessageId: prevUser.id, assistantMessageId: prevAssistant.id } };
     if (prevAssistant.status === "completed")
       return sseResponse(async send => { send(meta); send({ event: "done", data: { requestId: input.requestId, message: toMessage(prevAssistant) } }); });
@@ -110,9 +113,9 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
         if (!a) throw conflict("Yêu cầu này đang được xử lý.");
         return { userMsg: prevUser, assistant: a };
       }
-      const [u] = await tx.insert(messages).values({ userId: ctx.userId, sessionId, role: "user", content: input.content, status: "completed", requestId: input.requestId, createdAt: now, updatedAt: now }).returning();
+      const [u] = await tx.insert(messages).values({ userId: ctx.userId, sessionId, role: "user", content: input.content, status: "completed", requestId: input.requestId, mode: input.mode, followUpStep: input.followUpStep, createdAt: now, updatedAt: now }).returning();
       const later = new Date(now.getTime() + 1); // stable ordering: user before assistant
-      const [a] = await tx.insert(messages).values({ userId: ctx.userId, sessionId, role: "assistant", content: "", status: "streaming", requestId: input.requestId, createdAt: later, updatedAt: later }).returning();
+      const [a] = await tx.insert(messages).values({ userId: ctx.userId, sessionId, role: "assistant", content: "", status: "streaming", requestId: input.requestId, mode: input.mode, followUpStep: input.followUpStep, createdAt: later, updatedAt: later }).returning();
       return { userMsg: u, assistant: a };
     }));
   } catch (e) { await release(); throw e; }
@@ -186,7 +189,7 @@ export async function finishSession(ctx: Ctx, sessionId: string, { idempotencyKe
       concepts: [], messages: history.map(m => ({ role: m.role, content: m.content })) }));
     const extracted = aiExtractionSchema.parse(raw);
     const existing = await ctx.db.select({ id: concepts.id, normalizedTitle: concepts.normalizedTitle }).from(concepts)
-      .where(and(eq(concepts.userId, ctx.userId), eq(concepts.studySetId, session.studySetId), ne(concepts.status, "rejected")));
+      .where(and(eq(concepts.userId, ctx.userId), eq(concepts.studySetId, session.studySetId), ne(concepts.status, "rejected"), isNull(concepts.deletedAt)));
     const seen = new Set<string>();
     const fresh = extracted.concepts.map(c => ({ ...c, title: c.title.trim(), body: c.body.trim(), sourceRefs: groundedRefs(c.sourceRefs, sources), normalizedTitle: normalizeTitle(c.title) }))
       .filter(c => c.sourceRefs.length > 0 && !seen.has(c.normalizedTitle) && seen.add(c.normalizedTitle));

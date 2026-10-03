@@ -1,9 +1,9 @@
-import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import type { ConceptSnapshot, SourceSnapshot } from "@/contracts/ai";
 import { evaluationResultSchema, type Finding, type PracticeAttempt, type PracticeEvaluation } from "@/contracts/dto";
 import type { PracticeCreate, PracticeRetry } from "@/contracts/requests";
 import type { Db } from "@/db/client";
-import { practiceAttempts, practiceEvaluations } from "@/db/schema";
+import { practiceAttempts, practiceEvaluations, studySets } from "@/db/schema";
 import type { ListParams } from "@/server/auth/route";
 import { AiServiceError } from "@/server/ai/errors";
 import { getAiMetadata } from "@/server/composition";
@@ -20,15 +20,19 @@ const toAttempt = (r: AttemptRow): PracticeAttempt => ({ id: r.id, kind: r.kind,
   createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) });
 const toEvaluation = (r: EvaluationRow): PracticeEvaluation => ({ id: r.id, attemptId: r.attemptId, result: r.result, promptVersion: r.promptVersion, model: r.model, createdAt: iso(r.createdAt) });
 
+/** Attempts of a removed study set stay stored but leave lists and cannot be evaluated/retried. */
+const inActiveSet = (db: Db, userId: string) => inArray(practiceAttempts.studySetId,
+  db.select({ id: studySets.id }).from(studySets).where(and(eq(studySets.userId, userId), isNull(studySets.deletedAt))));
+
 async function getAttemptRow(db: Db, userId: string, id: string) {
-  const [row] = await db.select().from(practiceAttempts).where(and(eq(practiceAttempts.id, id), eq(practiceAttempts.userId, userId)));
+  const [row] = await db.select().from(practiceAttempts).where(and(eq(practiceAttempts.id, id), eq(practiceAttempts.userId, userId), inActiveSet(db, userId)));
   if (!row) throw notFound();
   return row;
 }
 
 export async function listAttempts(ctx: Ctx, q: ListParams) {
   const rows = await ctx.db.select().from(practiceAttempts)
-    .where(and(eq(practiceAttempts.userId, ctx.userId), q.studySetId ? eq(practiceAttempts.studySetId, q.studySetId) : undefined))
+    .where(and(eq(practiceAttempts.userId, ctx.userId), inActiveSet(ctx.db, ctx.userId), q.studySetId ? eq(practiceAttempts.studySetId, q.studySetId) : undefined))
     .orderBy(desc(practiceAttempts.createdAt)).limit(q.limit).offset(q.offset);
   return rows.map(toAttempt);
 }

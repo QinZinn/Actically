@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { createEmptyCard, fsrs, Rating, type Card, type Grade } from "ts-fsrs";
 import { aiFlashcardSchema } from "@/contracts/ai";
 import type { Flashcard, GradeResult, ReviewPresentation } from "@/contracts/dto";
@@ -28,25 +28,26 @@ const toCard = (r: CardRow): Flashcard => ({ id: r.id, conceptId: r.conceptId, s
 export const presentationIdOf = (cardId: string, revision: number) => `${cardId}.${revision}`;
 
 async function getCardRow(db: Db, userId: string, id: string) {
-  const [row] = await db.select().from(flashcards).where(and(eq(flashcards.id, id), eq(flashcards.userId, userId)));
+  const [row] = await db.select().from(flashcards).where(and(eq(flashcards.id, id), eq(flashcards.userId, userId), isNull(flashcards.deletedAt)));
   if (!row) throw notFound();
   return row;
 }
 
 export async function listCards(ctx: Ctx, q: ListParams) {
-  const rows = await ctx.db.select().from(flashcards).where(and(eq(flashcards.userId, ctx.userId), q.studySetId ? eq(flashcards.studySetId, q.studySetId) : undefined))
+  const rows = await ctx.db.select().from(flashcards).where(and(eq(flashcards.userId, ctx.userId), isNull(flashcards.deletedAt), q.studySetId ? eq(flashcards.studySetId, q.studySetId) : undefined))
     .orderBy(desc(flashcards.updatedAt)).limit(q.limit).offset(q.offset);
   return rows.map(toCard);
 }
 export async function updateCard(ctx: Ctx, id: string, { expectedRevision, ...patch }: CardUpdate) {
-  const where = and(eq(flashcards.id, id), eq(flashcards.userId, ctx.userId));
+  const where = and(eq(flashcards.id, id), eq(flashcards.userId, ctx.userId), isNull(flashcards.deletedAt));
   const [row] = await ctx.db.update(flashcards).set({ ...patch, revision: sql`${flashcards.revision} + 1`, updatedAt: nowOf(ctx) })
     .where(and(where, eq(flashcards.revision, expectedRevision))).returning();
   if (row) return toCard(row);
   throw (await ctx.db.select({ id: flashcards.id }).from(flashcards).where(where)).length ? conflict() : notFound();
 }
+/** Soft delete: leaves due/progress/active uniqueness; its append-only review events stay stored. */
 export async function deleteCard(ctx: Ctx, id: string) {
-  const [row] = await ctx.db.delete(flashcards).where(and(eq(flashcards.id, id), eq(flashcards.userId, ctx.userId))).returning({ id: flashcards.id });
+  const [row] = await ctx.db.update(flashcards).set({ deletedAt: nowOf(ctx) }).where(and(eq(flashcards.id, id), eq(flashcards.userId, ctx.userId), isNull(flashcards.deletedAt))).returning({ id: flashcards.id });
   if (!row) throw notFound();
 }
 
@@ -96,13 +97,13 @@ export async function generateCard(ctx: Ctx, input: CardGenerate) {
     throwIfAborted(ctx.signal);
     return await ctx.db.transaction(async tx => {
       throwIfAborted(ctx.signal);
-      const [locked] = await tx.select().from(concepts).where(and(eq(concepts.id, concept.id), eq(concepts.userId, ctx.userId))).for("update");
+      const [locked] = await tx.select().from(concepts).where(and(eq(concepts.id, concept.id), eq(concepts.userId, ctx.userId), isNull(concepts.deletedAt))).for("update");
       if (!locked) throw notFound();
       assertReady(locked); // re-check: concept may have changed during the AI call
       const at = nowOf(ctx), empty = createEmptyCard(at);
       const [card] = await tx.insert(flashcards).values({ userId: ctx.userId, conceptId: concept.id, studySetId: concept.studySetId, front: generated.front, back: generated.back,
         sourceRefs, scheduler: toState(empty), due: empty.due, createdAt: at, updatedAt: at })
-        .onConflictDoUpdate({ target: flashcards.conceptId, set: { front: generated.front, back: generated.back, sourceRefs, revision: sql`${flashcards.revision} + 1`, updatedAt: at } })
+        .onConflictDoUpdate({ target: flashcards.conceptId, targetWhere: sql`deleted_at is null`, set: { front: generated.front, back: generated.back, sourceRefs, revision: sql`${flashcards.revision} + 1`, updatedAt: at } })
         .returning();
       await tx.update(cardGenerations).set({ status: "completed", cardId: card.id, updatedAt: at }).where(keyWhere);
       throwIfAborted(ctx.signal);
@@ -134,7 +135,7 @@ export function endOfLocalDay(now: Date, timeZone: string) {
 export async function dueQueue(ctx: Ctx, q: ListParams): Promise<ReviewPresentation[]> {
   const cutoff = endOfLocalDay(nowOf(ctx), await userTimezone(ctx.db, ctx.userId));
   const rows = await ctx.db.select().from(flashcards)
-    .where(and(eq(flashcards.userId, ctx.userId), lt(flashcards.due, cutoff), q.studySetId ? eq(flashcards.studySetId, q.studySetId) : undefined))
+    .where(and(eq(flashcards.userId, ctx.userId), isNull(flashcards.deletedAt), lt(flashcards.due, cutoff), q.studySetId ? eq(flashcards.studySetId, q.studySetId) : undefined))
     .orderBy(asc(flashcards.due)).limit(q.limit).offset(q.offset);
   return rows.map(r => ({ card: toCard(r), presentationId: presentationIdOf(r.id, r.revision), expectedRevision: r.revision, dueAt: iso(r.due) }));
 }
@@ -146,7 +147,7 @@ export async function dueQueue(ctx: Ctx, q: ListParams): Promise<ReviewPresentat
 export async function gradeCard(ctx: Ctx, cardId: string, input: GradeRequest): Promise<GradeResult> {
   const now = nowOf(ctx);
   return ctx.db.transaction(async tx => {
-    const [card] = await tx.select().from(flashcards).where(and(eq(flashcards.id, cardId), eq(flashcards.userId, ctx.userId))).for("update");
+    const [card] = await tx.select().from(flashcards).where(and(eq(flashcards.id, cardId), eq(flashcards.userId, ctx.userId), isNull(flashcards.deletedAt))).for("update");
     if (!card) throw notFound();
     const [prior] = await tx.select().from(reviewEvents).where(and(eq(reviewEvents.userId, ctx.userId), eq(reviewEvents.idempotencyKey, input.idempotencyKey)));
     if (prior) {
