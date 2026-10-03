@@ -6,7 +6,7 @@ Bootstrap is under active parallel development. Initial pages and AI service hon
 
 ## Local setup
 
-Node 24 LTS (minimum 20.9), pnpm 11.19.0. Run `pnpm install --frozen-lockfile`, copy `.env.example` to `.env.local`, then `pnpm dev`. Check `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`. Run production with `pnpm start`. No credentials are required for bootstrap build or mocked AI checks.
+Node 24, pnpm 11.19.0. The full toolchain uses Node 24 (Vitest 5 has stricter requirements than Next's minimum). Run `pnpm install --frozen-lockfile`, copy `.env.example` to `.env.local`, then `pnpm dev`. Check `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`. Run production with `pnpm start`. No credentials are required for bootstrap build or mocked AI checks.
 
 Windows Codex bundled tools, when node/pnpm are absent from PATH:
 
