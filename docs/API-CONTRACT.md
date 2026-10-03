@@ -1,4 +1,6 @@
-# Actically API contract — 1.0.1
+# Actically API contract — 1.0.2
+
+Revision 1.0.2 adds optional nullable Message.requestContext `{ mode, followUpStep }`, preserving the original operation for retry after history reload. New backend messages should populate it; old fixtures/records remain valid without it. Retry reuses the paired user message content/requestId plus this context, never generates a new requestId. Missing legacy context should prompt a fresh user action rather than pretend an identical retry. All client signatures remain unchanged.
 
 Revision 1.0.1 is backward compatible: AI flashcard sourceRefs may be empty only for an approved manually authored concept with no source provenance. Provider verifies that generated sourceRefs match the approved concept and supplied source snapshots. DTOs/client methods are unchanged.
 
