@@ -2,7 +2,7 @@
 
 Vietnamese learning workspace. One Next.js App Router application, Supabase Auth/PostgreSQL, Drizzle, FSRS review and server-side NVIDIA Nemotron on Nebius Token Factory. Original product instructions live in `docs/actically-parallel-kit/`; `Actically Mockups.html` is the preserved visual reference.
 
-Bootstrap is under active parallel development. Initial pages and AI service honestly report unavailable integration. See root Board.md for live coordination, docs/OWNERSHIP.md for boundaries, docs/API-CONTRACT.md for executable contracts and docs/AI-INTEGRATION.md for provider safety.
+The bootstrap, contracts and provider implementation are ready; final frontend/backend integration is in progress. The coordinator is awaiting frozen worker handoffs and recorded cross-layer product checks. See root Board.md for current repair requests, docs/OWNERSHIP.md for boundaries, docs/API-CONTRACT.md for executable contracts and docs/AI-INTEGRATION.md for provider safety. Missing provider credentials produce an explicit unavailable response.
 
 ## Local setup
 
