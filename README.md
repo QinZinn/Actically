@@ -17,4 +17,30 @@ pnpm install --frozen-lockfile
 
 Workers must run installation in their assigned worktrees. Never share node_modules with the coordinator. TypeScript is pinned to a version accepted by typescript-eslint; the lockfile freezes all resolutions. `pnpm-workspace.yaml` allows only esbuild and unrs-resolver dependency build scripts.
 
-Supabase migration/seed and complete deployment/demo guidance are supplied at integration. Missing live credentials are reported as unverified external checks, never as passed tests. Do not publish, deploy, provision or submit automatically.
+## Database and authentication
+
+Use an existing Supabase project or create one yourself. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to its public browser configuration, DATABASE_URL to its PostgreSQL connection, and APP_URL to the application origin. The backend verifies Supabase getUser on each handler. A service-role API key is not required. Database URLs and the Nebius key stay server-only.
+
+In Supabase Auth, configure the Site URL and permitted redirect `<APP_URL>/auth/callback`. Email/password login/signup is the MVP auth path. Source and practice records are private to the verified user; RLS is an additional read boundary and direct database writes always pass the owner-scoped server services.
+
+After backend integration, apply the committed Drizzle migrations using `pnpm db:migrate`. `drizzle.config.ts` reads `.env.local` on Node 24. Use ONLY this migration authority for application tables/RLS; do not independently paste a competing table schema into the Supabase editor. `pnpm db:generate` is for schema authors making deliberate changes, not routine setup. Review target configuration before running a migration; no existing remote database has been migrated by this agent.
+
+Tests use PGlite with a small Supabase auth/RLS shim and real committed SQL migrations. This verifies PostgreSQL behavior locally and does not establish live Supabase cookie or PostgREST readiness. No production seed is required: create a study set and paste a text source through the product. Synthetic probability fixtures are available only in explicit demo mode and tests.
+
+## AI configuration
+
+Read [AI-USAGE.md](docs/AI-USAGE.md). Set NEBIUS_API_KEY locally, list the authenticated catalog, then set the exact accessible NVIDIA Nemotron ID in NEBIUS_MODEL. No credentials => explicit AI_NOT_CONFIGURED. No alternate model/provider is used. Optional `pnpm test:ai:live` requires ACTICALLY_LIVE_AI=true and configured credentials; it performs bounded synthetic checks. Routine `pnpm test` skips live generation.
+
+## Explicit demo mode
+
+Set NEXT_PUBLIC_DEMO_MODE=true before starting/building to select the visibly labelled demo client. Demo data is isolated in memory, and reload can reset it. It never serves as a production API failure fallback or proof of persistence. Set the flag false for authenticated real-data mode. NEXT_PUBLIC values are compiled into the browser bundle: rebuild after deployment configuration changes.
+
+## Manual Node deployment
+
+On a Node 24 server/container, install with the frozen pnpm lockfile, supply build-time public Supabase configuration and NEXT_PUBLIC_DEMO_MODE=false, run `pnpm build`, then `pnpm start` behind your HTTPS reverse proxy. Provide DATABASE_URL/NEBIUS_API_KEY/NEBIUS_MODEL/APP_URL via server secrets, configure Supabase callbacks for the final origin, and apply the committed migrations once through the migration authority. Ensure SSE responses are not buffered and the proxy/server timeout exceeds the 60-second AI deadline. Per-user AI quotas use PostgreSQL reservations; process-wide provider concurrency is an extra limit.
+
+No service has been provisioned, purchased, published or deployed automatically. Missing live credentials are unverified external checks, never passed tests. The project owner should review [LICENSE-SUGGESTION.md](docs/LICENSE-SUGGESTION.md) before publication.
+
+## Architecture and validation
+
+[ARCHITECTURE.md](docs/ARCHITECTURE.md), [API-CONTRACT.md](docs/API-CONTRACT.md), [OWNERSHIP.md](docs/OWNERSHIP.md), [INTEGRATION-CHECKLIST.md](docs/INTEGRATION-CHECKLIST.md) and the final handoff under docs/handoffs describe boundaries, data integrity and exact checks. [ORIGINAL-WORK.md](docs/ORIGINAL-WORK.md) records the preserved owner inputs and original implementation history. Completion requires explicit frozen worker handoffs and integrated product checks; provider code readiness alone is not product completion.
