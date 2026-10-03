@@ -1,99 +1,34 @@
 "use client";
-
-import { useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { getClient } from "@/lib/client";
-import type { Concept } from "@/contracts/dto";
+import { Select } from "@/components/ui/select";
+import type { Concept, StudySet } from "@/contracts/dto";
 import { cn } from "@/lib/client/utils";
-
-interface ConceptPickerProps {
-  selectedIds: string[];
-  onToggle: (id: string) => void;
-  disabled?: boolean;
+interface Props {
+  selectedIds: string[]; onToggle: (id: string) => void; disabled?: boolean; hideBody?: boolean;
+  studySetIdFilter?: string | null; onStudySetChange?: (id: string | null) => void;
+  concepts?: Concept[]; studySets?: StudySet[];
 }
-
-export default function ConceptPicker({
-  selectedIds,
-  onToggle,
-  disabled,
-}: ConceptPickerProps) {
-  const [concepts, setConcepts] = useState<Concept[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const data = await getClient().listConcepts({ status: "approved" });
-        if (!cancelled) setConcepts(data);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const total = concepts.length;
-  const selectedCount = selectedIds.length;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="overflow-y-auto max-h-80 w-full rounded-lg border border-border p-3 bg-card">
-        <div className="grid sm:grid-cols-2 gap-3">
-          {loading && concepts.length === 0 && (
-            <div className="col-span-2 text-sm text-muted-foreground py-6 text-center">
-              Đang tải danh sách khái niệm…
-            </div>
-          )}
-          {!loading && concepts.length === 0 && (
-            <div className="col-span-2 text-sm text-muted-foreground py-6 text-center">
-              Chưa có khái niệm nào được duyệt.
-            </div>
-          )}
-          {concepts.map((c) => {
-            const selected = selectedIds.includes(c.id);
-            return (
-              <Card
-                key={c.id}
-                onClick={() => !disabled && onToggle(c.id)}
-                className={cn(
-                  "cursor-pointer p-3 transition-all border-2",
-                  selected
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50",
-                  disabled && "opacity-60 cursor-not-allowed"
-                )}
-              >
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="font-semibold text-foreground line-clamp-1 text-sm">
-                      {c.title}
-                    </div>
-                    {selected && (
-                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                    )}
-                  </div>
-                  <div className="text-sm text-muted-foreground line-clamp-2">
-                    {c.body}
-                  </div>
-                  <Badge variant="secondary" size="sm">
-                    Khái niệm đã duyệt
-                  </Badge>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-      <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-        <span>Đã chọn: {selectedCount} / {total}</span>
-      </div>
+export default function ConceptPicker({ selectedIds, onToggle, disabled, hideBody,
+  studySetIdFilter, onStudySetChange, concepts = [], studySets = [] }: Props) {
+  const list = concepts.filter(c => c.studySetId === studySetIdFilter && c.status === "approved");
+  return <div className="space-y-3">
+    <label className="text-sm" htmlFor="practice-set">Bộ học</label>
+    <Select id="practice-set" value={studySetIdFilter ?? ""} disabled={disabled} onChange={e => onStudySetChange?.(e.target.value || null)}>
+      <option value="">Chọn một bộ học</option>
+      {studySets.map(s => <option key={s.id} value={s.id}>{s.subject} · {s.title}</option>)}
+    </Select>
+    <div className="grid gap-2 max-h-80 overflow-y-auto">
+      {list.map(c => <button type="button" key={c.id} aria-pressed={selectedIds.includes(c.id)}
+        disabled={disabled || (!selectedIds.includes(c.id) && selectedIds.length >= 30)}
+        onClick={() => onToggle(c.id)} className={cn("rounded-lg border-2 p-3 text-left focus-visible:ring-2 focus-visible:ring-primary",
+          selectedIds.includes(c.id) ? "border-primary bg-primary/5" : "border-border")}>
+        <div className="flex justify-between gap-2 font-semibold text-sm">{c.title}{selectedIds.includes(c.id) && <CheckCircle2 className="w-4 h-4 shrink-0" />}</div>
+        {!hideBody && <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{c.body}</p>}
+        <Badge variant="secondary" size="sm" className="mt-2">Đã duyệt · r{c.revision}</Badge>
+      </button>)}
+      {!list.length && <p className="text-sm text-muted-foreground">{studySetIdFilter ? "Bộ học chưa có khái niệm đã duyệt." : "Chọn bộ học trước khi chọn khái niệm."}</p>}
     </div>
-  );
+    <p className="text-xs text-muted-foreground">Đã chọn {selectedIds.length} · tối đa 30</p>
+  </div>;
 }

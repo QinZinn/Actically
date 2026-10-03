@@ -6,6 +6,7 @@ import type { PracticeKind, PracticeAttempt } from "@/contracts/dto";
 import { cn } from "@/lib/client/utils";
 
 interface PracticeAttemptHistoryProps {
+  disabled?: boolean;
   kind: PracticeKind;
   attempts: PracticeAttempt[];
   selectedId: string | null;
@@ -44,6 +45,7 @@ function StatusIcon({ status }: { status: PracticeAttempt["status"] }) {
 }
 
 export default function PracticeAttemptHistory({
+  disabled,
   kind,
   attempts,
   selectedId,
@@ -73,6 +75,7 @@ export default function PracticeAttemptHistory({
             <button
               key={a.id}
               type="button"
+              disabled={disabled}
               onClick={() => onSelect(a.id)}
               className={cn(
                 "w-full flex flex-row items-center justify-between p-3 text-left border-b border-border/60 last:border-b-0 hover:bg-popover transition-colors",

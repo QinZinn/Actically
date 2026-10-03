@@ -46,6 +46,7 @@ interface ConceptCardProps {
   onApprove?: (c: Concept) => void;
   onReject?: (c: Concept) => void;
   onDelete?: (c: Concept) => void;
+  onCardClick?: (c: Concept) => void;
 }
 
 export default function ConceptCard({
@@ -54,6 +55,7 @@ export default function ConceptCard({
   onApprove,
   onReject,
   onDelete,
+  onCardClick,
 }: ConceptCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const cfg = statusConfig[concept.status];
@@ -63,7 +65,20 @@ export default function ConceptCard({
 
   return (
     <>
-      <Card className="flex flex-col p-4 gap-3 hover:shadow-lg transition-shadow h-full">
+      <div
+        role={onCardClick ? "button" : undefined}
+        tabIndex={onCardClick ? 0 : undefined}
+        onClick={() => onCardClick?.(concept)}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onCardClick?.(concept);
+          }
+        }}
+        className="h-full outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
+      >
+        <Card className="flex flex-col p-4 gap-3 hover:shadow-lg transition-shadow h-full">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-semibold text-foreground line-clamp-2 flex-1">
             {concept.title}
@@ -88,7 +103,10 @@ export default function ConceptCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 pt-2 border-t border-border/60 flex-wrap">
+        <div
+          className="flex items-center gap-2 pt-2 border-t border-border/60 flex-wrap"
+          onClick={(e) => e.stopPropagation()}
+        >
           {showOwnerActions && onApprove && (
             <Button
               size="sm"
@@ -144,6 +162,7 @@ export default function ConceptCard({
           )}
         </div>
       </Card>
+      </div>
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>

@@ -3,8 +3,8 @@
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Plus,
   BookPlus,
@@ -32,6 +32,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import { ErrorState } from "@/components/ui/error-state";
+import { allPages } from "@/lib/client/pagination";
+import { uuidv4 } from "@/lib/client/utils";
+import FlashcardManager from "@/features/knowledge/FlashcardManager";
 import { getClient } from "@/lib/client";
 import type { Concept, Source, StudySet } from "@/contracts/dto";
 import SubjectTree from "@/features/knowledge/SubjectTree";
@@ -51,7 +55,6 @@ interface DuplicateWarn {
 }
 
 function KnowledgePageInner() {
-  useRouter();
   const searchParams = useSearchParams();
   const client = useMemo(() => getClient(), []);
 
@@ -68,6 +71,8 @@ function KnowledgePageInner() {
   const [editingConcept, setEditingConcept] = useState<Concept | null>(null);
   const [sourceEditorOpen, setSourceEditorOpen] = useState(false);
   const [editingSource, setEditingSource] = useState<Source | null>(null);
+  const [deletingSource, setDeletingSource] = useState<Source | null>(null);
+  const openedQuery = useRef<string | null>(null);
   const [studySetDialogOpen, setStudySetDialogOpen] = useState(false);
 
   const [ssSubject, setSsSubject] = useState("");
@@ -76,15 +81,19 @@ function KnowledgePageInner() {
   const [ssSaving, setSsSaving] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [cardVersion, setCardVersion] = useState(0);
+  const [editingSet, setEditingSet] = useState<StudySet | null>(null);
+  const [deletingSet, setDeletingSet] = useState<StudySet | null>(null);
 
-  const activeStudySetId = studySetId ?? studySets[0]?.id ?? "default-study-set";
+  const activeStudySetId = editingConcept?.studySetId ?? studySetId ?? studySets[0]?.id ?? "";
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       const [sets, allConcepts] = await Promise.all([
         client.listStudySets(),
-        client.listConcepts({ limit: 500 }),
+        allPages(q => client.listConcepts(q)),
       ]);
       setStudySets(sets);
       setConcepts(allConcepts);
@@ -92,7 +101,9 @@ function KnowledgePageInner() {
       const srcPromises = sets.map((s) => client.listSources(s.id));
       const srcResults = await Promise.all(srcPromises);
       setSources(srcResults.flat());
+      setLoadError(null);
     } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Không tải được dữ liệu");
       toast({
         variant: "error",
         title: "Không tải được dữ liệu",
@@ -116,7 +127,8 @@ function KnowledgePageInner() {
       if (paramStudySet) setStudySetId(paramStudySet);
       if (paramConcept) {
         const c = concepts.find((x) => x.id === paramConcept);
-        if (c) {
+        if (c && openedQuery.current !== paramConcept) {
+          openedQuery.current = paramConcept;
           setEditingConcept(c);
           setConceptEditorOpen(true);
         }
@@ -154,18 +166,20 @@ function KnowledgePageInner() {
     }
     setSsSaving(true);
     try {
-      const created = await client.createStudySet({
+      const input = {
         subject: ssSubject.trim(),
         title: ssTitle.trim(),
         description: ssDescription.trim(),
-      });
-      setStudySets((prev) => [...prev, created]);
+      };
+      const created = editingSet ? await client.updateStudySet(editingSet.id, { ...input, expectedRevision: editingSet.revision }) : await client.createStudySet(input);
+      setStudySets((prev) => [...prev.filter(s => s.id !== created.id), created]);
       toast({
         variant: "success",
-        title: "Đã tạo bộ học",
+        title: "Đã lưu bộ học",
         description: created.title,
       });
       setStudySetDialogOpen(false);
+      setEditingSet(null);
       setSsSubject("");
       setSsTitle("");
       setSsDescription("");
@@ -205,6 +219,12 @@ function KnowledgePageInner() {
           title: "Đã duyệt",
           description: saved.title,
         });
+        try {
+          await client.generateCard({ conceptId: saved.id, expectedConceptRevision: saved.revision, idempotencyKey: uuidv4() });
+          setCardVersion(v => v + 1);
+        } catch (e) {
+          toast({ variant: "warning", title: "Đã duyệt, chưa tạo được thẻ", description: (e instanceof Error ? e.message + " " : "") + "Mở mục Đã duyệt và chọn Tạo thẻ để thử lại." });
+        }
       } catch (err) {
         toast({
           variant: "error",
@@ -315,7 +335,7 @@ function KnowledgePageInner() {
           <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="secondary"
-              onClick={() => setStudySetDialogOpen(true)}
+              onClick={() => { setEditingSet(null); setSsSubject(""); setSsTitle(""); setSsDescription(""); setStudySetDialogOpen(true); }}
               className="gap-2"
             >
               <BookPlus className="h-4 w-4" />
@@ -331,6 +351,11 @@ function KnowledgePageInner() {
         {duplicates.length > 0 && (
           <DuplicateWarningBanner warnings={duplicates} />
         )}
+        {loadError && <ErrorState title="Không tải được Kiến thức" body={loadError} onRetry={loadAll} />}
+        {studySetId && <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" onClick={() => { const s = studySets.find(x => x.id === studySetId); if (s) { setEditingSet(s); setSsSubject(s.subject); setSsTitle(s.title); setSsDescription(s.description); setStudySetDialogOpen(true); } }}>Sửa bộ học</Button>
+          <Button variant="ghost" size="sm" onClick={() => setDeletingSet(studySets.find(x => x.id === studySetId) ?? null)}>Xóa bộ học</Button>
+        </div>}
 
         <div className="grid lg:grid-cols-[300px_1fr] gap-6">
           <aside className="lg:sticky lg:top-0 lg:self-start">
@@ -349,7 +374,7 @@ function KnowledgePageInner() {
                   concepts={concepts}
                   sources={sources}
                   studySetId={studySetId}
-                  onSelect={setStudySetId}
+                  onSelect={id => { setStudySetId(id); setOffset(0); }}
                 />
               )}
             </Card>
@@ -416,6 +441,7 @@ function KnowledgePageInner() {
                   onDelete={handleDeleteConcept}
                   loading={loading}
                 />
+                <FlashcardManager concepts={filteredConcepts} version={cardVersion} />
               </TabsContent>
 
               <TabsContent value="all" className="mt-4">
@@ -494,6 +520,7 @@ function KnowledgePageInner() {
                             <Pencil className="h-4 w-4" />
                             Sửa
                           </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeletingSource(s)}>Xóa nguồn</Button>
                         </div>
                       </Card>
                     ))}
@@ -520,14 +547,14 @@ function KnowledgePageInner() {
         open={sourceEditorOpen}
         onOpenChange={setSourceEditorOpen}
         source={editingSource}
-        studySetId={activeStudySetId}
+        studySetId={editingSource?.studySetId ?? studySetId ?? studySets[0]?.id ?? ""}
         onSaved={(s) => refreshSource(s)}
       />
 
       <Dialog open={studySetDialogOpen} onOpenChange={setStudySetDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Tạo bộ học mới</DialogTitle>
+            <DialogTitle>{editingSet ? "Sửa bộ học" : "Tạo bộ học mới"}</DialogTitle>
             <DialogDescription>
               Bộ học chứa các khái niệm và nguồn cùng chủ đề.
             </DialogDescription>
@@ -571,9 +598,29 @@ function KnowledgePageInner() {
               Hủy
             </Button>
             <Button onClick={handleCreateStudySet} disabled={ssSaving}>
-              {ssSaving ? "Đang tạo…" : "Tạo bộ học"}
+              {ssSaving ? "Đang lưu…" : "Lưu bộ học"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!deletingSet} onOpenChange={v => { if (!v) setDeletingSet(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Xóa bộ học?</DialogTitle></DialogHeader>
+          <p className="text-sm">Bộ học và các thẻ liên quan sẽ rời danh sách đang học. Lịch sử đã lưu vẫn được giữ.</p>
+          <DialogFooter><Button variant="danger" onClick={async () => {
+            if (!deletingSet) return;
+            try { await client.deleteStudySet(deletingSet.id); setDeletingSet(null); setStudySetId(null); setOffset(0); await loadAll(); }
+            catch (e) { toast({ variant: "error", title: "Không xóa được bộ học", description: e instanceof Error ? e.message : undefined }); }
+          }}>Xóa bộ học</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!deletingSource} onOpenChange={v => { if (!v) setDeletingSource(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Xóa nguồn khỏi bộ học?</DialogTitle></DialogHeader>
+          <p className="text-sm">Các phiên bản tham chiếu trong lịch sử vẫn được giữ.</p>
+          <DialogFooter><Button variant="danger" onClick={async () => {
+            if (!deletingSource) return;
+            try { await client.deleteSource(deletingSource.id); refreshSource(deletingSource, true); setDeletingSource(null); }
+            catch (e) { toast({ variant: "error", title: "Không xóa được nguồn", description: e instanceof Error ? e.message : undefined }); }
+          }}>Xóa nguồn</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </AppLayout>

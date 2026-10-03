@@ -13,6 +13,8 @@ type ReviewEvent = z.infer<typeof reviewEventSchema>;
 
 interface ReviewHistoryProps {
   events: ReviewEvent[];
+  timezone?: string;
+  selectedEventId?: string | null;
 }
 
 const ratingMeta: Record<
@@ -25,13 +27,14 @@ const ratingMeta: Record<
   easy: { label: "Dễ", variant: "default", Icon: Sparkles },
 };
 
-function formatTime(date: string): string {
+function formatTime(date: string, timezone: string): string {
   try {
     return new Date(date).toLocaleString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit",
       day: "2-digit",
       month: "2-digit",
+      timeZone: timezone,
     });
   } catch {
     return date;
@@ -45,7 +48,7 @@ const ratingVariants: Record<ReviewRating, "destructive" | "weak" | "growing" | 
   easy: "default",
 };
 
-export default function ReviewHistory({ events }: ReviewHistoryProps) {
+export default function ReviewHistory({ events, timezone = "Asia/Ho_Chi_Minh", selectedEventId }: ReviewHistoryProps) {
   const sorted = [...events].sort(
     (a, b) => new Date(b.reviewedAt).getTime() - new Date(a.reviewedAt).getTime()
   );
@@ -75,8 +78,10 @@ export default function ReviewHistory({ events }: ReviewHistoryProps) {
           return (
             <div
               key={ev.id}
+              id={"review-event-" + ev.id}
               className={cn(
-                "flex items-center justify-between gap-2 p-3 border-b border-border/60 last:border-b-0"
+                "flex items-center justify-between gap-2 p-3 border-b border-border/60 last:border-b-0",
+                selectedEventId === ev.id && "bg-primary/10 ring-2 ring-primary"
               )}
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -94,7 +99,7 @@ export default function ReviewHistory({ events }: ReviewHistoryProps) {
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                 <Clock className="h-3 w-3" />
-                {formatTime(ev.reviewedAt)}
+                {formatTime(ev.reviewedAt, timezone)}
               </div>
             </div>
           );

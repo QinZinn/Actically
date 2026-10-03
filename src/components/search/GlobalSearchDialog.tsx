@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Loader2, MessagesSquare, BookOpen } from 'lucide-react';
 import {
@@ -15,7 +15,6 @@ import type { ActicallyClient } from '@/contracts/client';
 import type {
   LearningSession,
   Concept,
-  SearchResult,
   StudyMode,
 } from '@/contracts/dto';
 import { cn } from '@/lib/client/utils';
@@ -48,6 +47,7 @@ export default function GlobalSearchDialog({
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<SearchSections>({
     sessions: [],
     concepts: [],
@@ -61,7 +61,10 @@ export default function GlobalSearchDialog({
     return () => clearTimeout(timer);
   }, [query, open]);
 
-  const fetchResults = useCallback(async () => {
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    async function fetchResults() {
     const q = debouncedQuery.trim();
     if (!q) {
       setResults({ sessions: [], concepts: [] });
@@ -72,20 +75,23 @@ export default function GlobalSearchDialog({
     setLoading(true);
     try {
       if (client?.search) {
-        const data: SearchResult = await client.search(q);
-        setResults({
+        const data = await client.search(q);
+        if (active) setResults({
           sessions: data.sessions ?? [],
           concepts: data.concepts ?? [],
         });
       } else {
         setResults({ sessions: [], concepts: [] });
       }
-    } catch {
-      setResults({ sessions: [], concepts: [] });
+    } catch (e) {
+      if (active) { setError(e instanceof Error ? e.message : "Không tìm kiếm được"); setResults({ sessions: [], concepts: [] }); }
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
-  }, [debouncedQuery, client]);
+    }
+    queueMicrotask(() => { if (active) { setError(null); void fetchResults(); } });
+    return () => { active = false; };
+  }, [debouncedQuery, client, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,9 +99,8 @@ export default function GlobalSearchDialog({
       setQuery('');
       setDebouncedQuery('');
       setResults({ sessions: [], concepts: [] });
-      fetchResults();
     });
-  }, [open, fetchResults]);
+  }, [open]);
 
   const handleSelectSession = (session: LearningSession) => {
     const url = `/sessions/${session.id}`;
@@ -107,7 +112,7 @@ export default function GlobalSearchDialog({
   };
 
   const handleSelectConcept = (concept: Concept) => {
-    const url = `/knowledge?concept=${concept.id}`;
+    const url = `/knowledge?id=${encodeURIComponent(concept.id)}`;
     if (onSelect) {
       onSelect({ type: 'concept', id: concept.id, url });
     }
@@ -132,6 +137,8 @@ export default function GlobalSearchDialog({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <Input
               autoFocus
+              aria-label="Tìm kiếm phiên học và khái niệm"
+              maxLength={200}
               placeholder="Tìm phiên học, khái niệm..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -154,7 +161,8 @@ export default function GlobalSearchDialog({
             </div>
           )}
 
-          {searched && !loading && !hasResults && (
+          {error && <p role="alert" className="p-5 text-error">{error}</p>}
+          {searched && !loading && !hasResults && !error && (
             <div className="py-10 px-5 text-center">
               <p className="text-sm text-muted-foreground">
                 Không tìm thấy kết quả cho &quot;{debouncedQuery}&quot;

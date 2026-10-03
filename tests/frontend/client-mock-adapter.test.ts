@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import MockAdapter from "@/lib/client/mockAdapter";
-import { ActicallyClientError } from "@/lib/client/errors";
 import { studySets } from "@/lib/client/fixtures";
 
 describe("MockAdapter ActicallyClient", () => {

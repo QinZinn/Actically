@@ -1,87 +1,27 @@
-'use client';
-
-import type { ReactNode } from 'react';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import { XCircle } from 'lucide-react';
-import { cn } from '@/lib/client/utils';
-
-interface ContextPanelProps {
-  open: boolean;
-  onClose: () => void;
-  defaultTab?: 'concepts' | 'sources' | 'notes';
-  children?: ReactNode;
-}
-
-export default function ContextPanel({
-  open,
-  onClose,
-  defaultTab = 'concepts',
-  children,
-}: ContextPanelProps) {
-  return (
-    <aside
-      className={cn(
-        'h-screen flex flex-col border-l border-border bg-sidebar/40 shrink-0 transition-[width,transform] duration-200 overflow-hidden',
-        open ? 'w-[360px] translate-x-0' : 'w-0 translate-x-full'
-      )}
-      aria-hidden={!open}
-    >
-      <Tabs defaultValue={defaultTab} className="w-full flex-1 flex flex-col min-h-0">
-        <div className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0">
-          <TabsList className="grid w-full grid-cols-3 h-9">
-            <TabsTrigger value="concepts" className="text-xs h-8">
-              Khái niệm
-            </TabsTrigger>
-            <TabsTrigger value="sources" className="text-xs h-8">
-              Nguồn
-            </TabsTrigger>
-            <TabsTrigger value="notes" className="text-xs h-8">
-              Ghi chú
-            </TabsTrigger>
-          </TabsList>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 ml-2 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-popover transition-colors"
-            aria-label="Đóng"
-          >
-            <XCircle className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-4 min-h-0">
-          {children ?? (
-            <>
-              <TabsContent value="concepts" className="mt-0">
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Chưa có khái niệm nào được trích xuất.
-                  </p>
-                </div>
-              </TabsContent>
-              <TabsContent value="sources" className="mt-0">
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Chưa có nguồn nào được liên kết.
-                  </p>
-                </div>
-              </TabsContent>
-              <TabsContent value="notes" className="mt-0">
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Chưa có ghi chú nào.
-                  </p>
-                </div>
-              </TabsContent>
-            </>
-          )}
-        </div>
-      </Tabs>
+"use client";
+import { useSyncExternalStore, type ReactNode } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { X } from "lucide-react";
+export default function ContextPanel({ open, onClose, children }: { open: boolean; onClose: () => void; children?: ReactNode; defaultTab?: string }) {
+  const narrow = useSyncExternalStore(
+    callback => { const media = window.matchMedia("(max-width: 1023px)"); media.addEventListener("change", callback); return () => media.removeEventListener("change", callback); },
+    () => window.matchMedia("(max-width: 1023px)").matches, () => false);
+  if (!open) return null;
+  return <>
+    <aside className="hidden lg:flex w-[360px] h-full min-h-0 flex-col border-l border-border bg-sidebar shrink-0">
+      <div className="p-4 border-b border-border flex justify-between items-center">
+        <h2 className="font-semibold">Ngữ cảnh phiên học</h2>
+        <button aria-label="Đóng ngữ cảnh" onClick={onClose} className="p-2 rounded focus-visible:ring-2"><X className="w-4 h-4" /></button>
+      </div>
+      <div className="p-4 overflow-y-auto min-h-0">{children}</div>
     </aside>
-  );
+    <div className="lg:hidden">
+      <Dialog open={open && narrow} onOpenChange={v => { if (!v) onClose(); }}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] max-h-[85dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Ngữ cảnh phiên học</DialogTitle></DialogHeader>
+          {children}
+        </DialogContent>
+      </Dialog>
+    </div>
+  </>;
 }

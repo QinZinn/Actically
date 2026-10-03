@@ -13,6 +13,7 @@ import GradeButtons from "./GradeButtons";
 type ReviewRating = z.infer<typeof reviewRatingSchema>;
 
 interface ReviewSessionProps {
+  grading?: boolean;
   presentations: ReviewPresentation[];
   index: number;
   onGrade: (idx: number, rating: ReviewRating) => void;
@@ -22,6 +23,7 @@ export default function ReviewSession({
   presentations,
   index,
   onGrade,
+  grading = false,
 }: ReviewSessionProps) {
   const [revealed, setRevealed] = useState(false);
   const current = presentations[index];
@@ -39,7 +41,6 @@ export default function ReviewSession({
 
   const handleGrade = (rating: ReviewRating) => {
     onGrade(index, rating);
-    setRevealed(false);
   };
 
   return (
@@ -81,7 +82,7 @@ export default function ReviewSession({
         </Button>
       ) : (
         <div className="pt-2">
-          <GradeButtons disabled={false} onGrade={handleGrade} />
+          <GradeButtons disabled={grading} onGrade={handleGrade} />
         </div>
       )}
     </div>

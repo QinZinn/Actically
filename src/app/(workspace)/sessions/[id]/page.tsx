@@ -1,216 +1,78 @@
 "use client";
-
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
-
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { StudyMode, ExtractionResult, StudySet, Message } from "@/contracts/dto";
+import type { StudyMode, Source, Concept } from "@/contracts/dto";
 import AppLayout from "@/components/layout/AppLayout";
-import { ToastProvider, toast } from "@/components/ui/toast";
+import { toast } from "@/components/ui/toast";
 import { ErrorState } from "@/components/ui/error-state";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useActicallyClient } from "@/features/client-provider";
 import { useSession } from "@/features/session/useSession";
+import { allPages } from "@/lib/client/pagination";
 import SessionHeader from "@/features/session/SessionHeader";
 import MessageList from "@/features/session/MessageList";
 import SessionComposer from "@/features/session/SessionComposer";
-import StreamingIndicator from "@/features/session/StreamingIndicator";
+import MarkdownRenderer from "@/components/markdown/MarkdownRenderer";
 
-interface SessionPageInnerProps {
-  sessionId: string;
-}
-
-function SessionPageInner({ sessionId }: SessionPageInnerProps) {
+function SessionBody({ sessionId }: { sessionId: string }) {
   const client = useActicallyClient();
   const router = useRouter();
-  const {
-    session,
-    messages,
-    sending,
-    error,
-    streaming,
-    sendMessage,
-    cancel,
-    finishSession,
-    handleRetry,
-  } = useSession(sessionId);
-
-  const [mode, setMode] = React.useState<StudyMode>(() => session?.mode ?? "socratic");
-  const [studySetId, setStudySetId] = React.useState<string | null>(() => session?.studySetId ?? null);
+  const state = useSession(sessionId);
+  const [modeOverride, setMode] = React.useState<StudyMode | null>(null);
   const [sourceOpen, setSourceOpen] = React.useState(false);
-  const [, setStudySets] = React.useState<StudySet[]>([]);
-
+  const [sources, setSources] = React.useState<Source[]>([]);
+  const [concepts, setConcepts] = React.useState<Concept[]>([]);
+  const [contextError, setContextError] = React.useState<string | null>(null);
+  const [updating, setUpdating] = React.useState(false);
+  const updateLock = React.useRef(false);
+  const mode = modeOverride ?? state.session?.mode ?? "socratic";
+  const studySetId = state.session?.studySetId ?? null;
   React.useEffect(() => {
-    let mounted = true;
-    async function load() {
-      try {
-        const list = await client.listStudySets();
-        if (mounted) setStudySets(list);
-      } catch {
-        /* ignore */
-      }
-    }
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, [client]);
-
-  React.useEffect(() => {
-    if (error) {
-      toast({ title: "Lỗi", description: error, variant: "error" });
-    }
-  }, [error]);
-
-  const handleRename = async (title: string) => {
-    if (!session) return;
-    try {
-      await client.updateSession(session.id, {
-        title,
-      });
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Có lỗi xảy ra.";
-      toast({
-        title: "Đổi tên thất bại",
-        description: message,
-        variant: "error",
-      });
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!session) return;
-    try {
-      await client.deleteSession(session.id);
-      toast({ title: "Đã xóa phiên", variant: "info" });
-      router.push("/");
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : "Có lỗi xảy ra.";
-      toast({
-        title: "Xóa thất bại",
-        description: message,
-        variant: "error",
-      });
-    }
-  };
-
-  const handleEndExtract = async (): Promise<ExtractionResult | void> => {
-    return finishSession();
-  };
-
-  const handleFollowUpStep = (_msg: Message, stepNumber: number) => {
-    sendMessage(mode, `Xin giải thích rõ hơn bước ${stepNumber}`, stepNumber);
-  };
-
-  const contextPanel = (
-    <div className="space-y-3">
-      <h3 className="font-semibold text-sm">
-        Khái niệm liên quan (sẽ cập nhật sau khi kết thúc)
-      </h3>
-      <p className="text-muted text-sm">
-        Kết thúc phiên để trích xuất.
-      </p>
-    </div>
-  );
-
-  return (
-    <React.Fragment key={session?.id ?? "loading"}>
-      <AppLayout contextPanel={contextPanel}>
-        <div className="flex flex-col h-[calc(100vh-8rem)] min-h-0">
-          {!session ? (
-            <div className="space-y-4 p-4">
-              <div className="flex justify-between items-center mb-4">
-                <Skeleton className="h-7 w-48" />
-                <Skeleton className="h-8 w-40" />
-              </div>
-              <div className="space-y-5">
-                <Skeleton className="h-24 w-3/4 ml-auto" />
-                <Skeleton className="h-32 w-4/5" />
-                <Skeleton className="h-24 w-2/3 ml-auto" />
-              </div>
-            </div>
-          ) : error && messages.length === 0 ? (
-            <div className="p-4">
-              <ErrorState
-                title="Không thể tải phiên học"
-                body={error}
-                onRetry={() => router.refresh()}
-              />
-            </div>
-          ) : (
-            <>
-              <div className="px-4 pt-4">
-                <SessionHeader
-                  session={session}
-                  onRename={handleRename}
-                  onDelete={handleDelete}
-                  onEndExtractConcepts={handleEndExtract}
-                />
-              </div>
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <MessageList
-                  messages={messages}
-                  onRetry={handleRetry}
-                  onFollowUpSolveStep={handleFollowUpStep}
-                />
-                <StreamingIndicator visible={streaming && sending} />
-              </div>
-              <SessionComposer
-                mode={mode}
-                onModeChange={setMode}
-                studySetId={studySetId}
-                onStudySetChange={setStudySetId}
-                onSend={(m, c) => sendMessage(m, c)}
-                sending={sending}
-                onCancel={cancel}
-                sourcePasteOpen={sourceOpen}
-                onToggleSourcePaste={() => setSourceOpen((v) => !v)}
-              />
-            </>
-          )}
-        </div>
-      </AppLayout>
-    </React.Fragment>
-  );
-}
-
-export default function SessionPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  return (
-    <ToastProvider>
-      <SessionPageParamsWrapper paramsPromise={params} />
-    </ToastProvider>
-  );
-}
-
-function SessionPageParamsWrapper({
-  paramsPromise,
-}: {
-  paramsPromise: Promise<{ id: string }>;
-}) {
-  const [params, setParams] = React.useState<{ id: string } | null>(null);
-  React.useEffect(() => {
-    let mounted = true;
-    paramsPromise.then((p) => {
-      if (mounted) setParams(p);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [paramsPromise]);
-  if (!params) {
-    return (
-      <AppLayout>
-        <div className="p-8 space-y-3">
-          <Skeleton className="h-8 w-64" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      </AppLayout>
-    );
+    let active = true;
+    Promise.all([studySetId ? client.listSources(studySetId) : Promise.resolve([]),
+      studySetId ? allPages(q => client.listConcepts({ ...q, studySetId })) : Promise.resolve([])])
+      .then(([s, c]) => { if (active) { setSources(s); setConcepts(c); setContextError(null); } })
+      .catch(e => { if (active) setContextError(e.message); });
+    return () => { active = false; };
+  }, [client, studySetId, state.session?.status, sourceOpen]);
+  async function update(input: Parameters<typeof state.updateSession>[0]) {
+    if (updateLock.current || state.sending) return;
+    updateLock.current = true; setUpdating(true);
+    try { await state.updateSession(input); }
+    catch (e) { setMode(null); toast({ variant: "error", title: "Không lưu được thay đổi", description: e instanceof Error ? e.message : undefined }); }
+    finally { updateLock.current = false; setUpdating(false); }
   }
-  return <SessionPageInner sessionId={params.id} />;
+  const context = <div className="space-y-5">
+    {contextError && <p role="alert">{contextError}</p>}
+    <section><h3 className="font-semibold mb-2">Khái niệm</h3>
+      {concepts.length ? concepts.map(c => <Link className="block p-2 rounded hover:bg-popover" key={c.id} href={`/knowledge?id=${encodeURIComponent(c.id)}`}>{c.title} · {c.status === "pending" ? "Chờ duyệt" : c.status === "approved" ? "Đã duyệt" : "Đã loại"}</Link>) : <p className="text-sm text-muted-foreground">Chưa có khái niệm. Kết thúc phiên để trích xuất.</p>}
+    </section>
+    <section><h3 className="font-semibold mb-2">Nguồn đã liên kết</h3>
+      {sources.length ? sources.map(s => <details key={s.id} className="py-2"><summary className="cursor-pointer">{s.title} · r{s.revision}</summary><MarkdownRenderer>{s.content}</MarkdownRenderer></details>) : <p className="text-sm text-muted-foreground">Phiên chưa có nguồn tham khảo.</p>}
+    </section>
+  </div>;
+  return <AppLayout contextPanel={context}>
+    <div className="flex flex-col h-full min-h-[70dvh]">
+      {!state.session ? state.error ? <ErrorState title="Không thể tải phiên học" body={state.error} onRetry={state.reload} /> : <p role="status">Đang tải phiên học…</p> : <>
+        <SessionHeader session={state.session} busy={state.sending || state.ending || updating}
+          onRename={title => update({ title })}
+          onDelete={async () => { try { await client.deleteSession(sessionId); router.push("/"); } catch (e) { toast({ variant: "error", title: "Không xóa được phiên", description: e instanceof Error ? e.message : undefined }); } }}
+          onEndExtractConcepts={() => updateLock.current ? Promise.resolve(undefined) : state.finishSession()} />
+        {state.error && <p role="alert" className="text-error p-2">{state.error}</p>}
+        <div className="flex-1 min-h-[240px]"><MessageList messages={state.messages} actionsDisabled={updating || state.sending || state.ending || state.session.status === "ended"}
+          onRetry={m => { if (!updateLock.current) void state.handleRetry(m); }}
+          onAnswer={(m, a) => updateLock.current ? Promise.resolve(false) : state.sendMessage("ask", `Với câu kiểm tra hiểu: ${m.solve?.comprehensionCheck ?? ""}\nCâu trả lời của tôi: ${a}`)}
+          onFollowUpSolveStep={(_m, step) => { if (!updateLock.current) void state.sendMessage("ask", `Xin giải thích rõ hơn bước ${step}`, step); }} /></div>
+        {state.session.status === "ended" ? <p className="p-4 text-sm">Phiên đã kết thúc. <Link href="/knowledge" className="text-primary underline">Duyệt khái niệm</Link> hoặc <Link href="/" className="text-primary underline">tạo phiên mới</Link>.</p> :
+          <SessionComposer draftKey={sessionId} mode={mode} onModeChange={m => { setMode(m); void update({ mode: m }); }}
+            studySetId={studySetId} onStudySetChange={id => { void update({ studySetId: id }); }}
+            onSend={(m, c) => updateLock.current ? Promise.resolve(false) : state.sendMessage(m, c)} disabled={updating || state.ending} sending={state.sending} onCancel={state.cancel}
+            sourcePasteOpen={sourceOpen} onToggleSourcePaste={() => setSourceOpen(v => !v)} />}
+      </>}
+    </div>
+  </AppLayout>;
+}
+export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = React.use(params);
+  return <SessionBody key={id} sessionId={id} />;
 }

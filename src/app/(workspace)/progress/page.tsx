@@ -6,6 +6,7 @@ export const fetchCache = "force-no-store";
 import { useEffect, useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getClient } from "@/lib/client";
 import type { TopicProgress } from "@/contracts/dto";
@@ -53,6 +54,8 @@ function ProgressSkeleton() {
 
 function ProgressInner() {
   const [topics, setTopics] = useState<TopicProgress[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -60,13 +63,13 @@ function ProgressInner() {
       const client = getClient();
       const data = await client.getProgress();
       if (mounted) setTopics(data);
-    })();
+    })().catch(e => { if (mounted) setError(e.message); });
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [retry]);
 
-  return topics === null ? (
+  return error && !topics ? <ErrorState title="Không tải được tiến độ" body={error} onRetry={() => setRetry(v => v + 1)} /> : topics === null ? (
     <ProgressSkeleton />
   ) : (
     <ProgressDashboard topics={topics} />

@@ -30,6 +30,7 @@ const MODE_LABEL: Record<StudyMode, string> = {
 };
 
 interface SessionHeaderProps {
+  busy?: boolean;
   session: LearningSession;
   onRename: (title: string) => void;
   onDelete: () => void;
@@ -37,6 +38,7 @@ interface SessionHeaderProps {
 }
 
 export default function SessionHeader({
+  busy = false,
   session,
   onRename,
   onDelete,
@@ -128,7 +130,7 @@ export default function SessionHeader({
           ) : (
             <h2
               className="text-lg font-semibold truncate cursor-pointer hover:opacity-80"
-              onDoubleClick={startEdit}
+              onDoubleClick={() => { if (!busy) startEdit(); }}
             >
               {session.title}
             </h2>
@@ -140,6 +142,7 @@ export default function SessionHeader({
               onClick={startEdit}
               className="h-6 w-6 p-0 rounded-md text-muted-foreground hover:text-foreground"
               aria-label="Đổi tên"
+              disabled={busy}
             >
               <Pencil className="w-3.5 h-3.5" />
             </Button>
@@ -158,7 +161,7 @@ export default function SessionHeader({
             variant="ghost"
             size="sm"
             onClick={() => setConfirmOpen(true)}
-            disabled={ending || session.status === "ended"}
+            disabled={busy || ending || session.status === "ended"}
             className="gap-1"
           >
             <Inbox className="w-4 h-4" />
@@ -176,7 +179,7 @@ export default function SessionHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onDelete} className="gap-2 text-error">
+              <DropdownMenuItem disabled={busy} onClick={onDelete} className="gap-2 text-error">
                 <Trash2 className="w-4 h-4" />
                 Xóa phiên
               </DropdownMenuItem>
@@ -198,7 +201,7 @@ export default function SessionHeader({
             <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
               Không
             </Button>
-            <Button onClick={handleEnd} disabled={ending}>
+            <Button onClick={handleEnd} disabled={ending || busy}>
               {ending ? "Đang xử lý…" : "Có, tiếp tục"}
             </Button>
           </DialogFooter>

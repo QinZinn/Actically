@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/client/utils";
 
 interface RecoverableErrorBoxProps {
-  title: "Chưa phân tích được bài giải thích" | "Chưa gửi được câu trả lời";
+  title: string;
   body?: string;
   onRetry: () => void;
   onBackToWriter: () => void;

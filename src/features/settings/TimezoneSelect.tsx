@@ -82,7 +82,7 @@ export default function TimezoneSelect({ tz, onSave }: TimezoneSelectProps) {
               onChange={(e) => setValue(e.target.value)}
               className="flex h-[38px] w-full rounded-lg border border-input bg-sidebar/50 px-3 text-sm shadow-sm transition-colors placeholder:text-muted-foreground outline-none ring-0 focus:border-primary focus:shadow-[0_0_0_3px_var(--focus-halo)] duration-150 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {TIMEZONE_OPTIONS.map((opt) => (
+              {[...new Set([tz, ...TIMEZONE_OPTIONS])].map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>

@@ -1,3 +1,4 @@
+import { cardStatus, topicStatus } from "@/lib/progress-policy";
 import type {
   UserProfile,
   StudySet,
@@ -851,32 +852,9 @@ function lastNEvents(cardId: string, n: number): ReviewEvent[] {
     .slice(-n);
 }
 
-function cardStatus(recent5: ReviewEvent[]): "weak" | "growing" | "solid" | "nodata" {
-  if (recent5.length === 0) return "nodata";
-  const againCount = recent5.filter((e) => e.rating === "again").length;
-  if (againCount >= 2) return "weak";
-  const geGoodCount = recent5.filter((e) => e.rating === "good" || e.rating === "easy").length;
-  if (recent5.length >= 5 && geGoodCount >= 4 && againCount === 0) return "solid";
-  return "growing";
-}
-
 function topicStatusForSet(studySetId: string): "weak" | "growing" | "solid" | "nodata" {
-  const cardsInSet = flashcards.filter((c) => c.studySetId === studySetId);
-  if (cardsInSet.length === 0) return "nodata";
-  let anyWeak = false;
-  let allSolidOrNodata = true;
-  for (const c of cardsInSet) {
-    const s = cardStatus(lastNEvents(c.id, 5));
-    if (s === "weak") anyWeak = true;
-    if (s !== "solid" && s !== "nodata") allSolidOrNodata = false;
-  }
-  if (anyWeak) return "weak";
-  const anyNotNodata = cardsInSet.some((c) => cardStatus(lastNEvents(c.id, 5)) !== "nodata");
-  if (allSolidOrNodata && anyNotNodata) return "solid";
-  if (!anyNotNodata) return "nodata";
-  return "growing";
+  return topicStatus(flashcards.filter(c => c.studySetId === studySetId).map(c => cardStatus(lastNEvents(c.id, 5).reverse().map(e => e.rating))));
 }
-
 function assessmentObs(attempt: PracticeAttempt, ev: PracticeEvaluation): TopicProgress["assessmentObservations"][number] {
   return {
     attemptId: attempt.id,

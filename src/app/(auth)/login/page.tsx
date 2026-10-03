@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState } from "@/components/ui/error-state";
-import { toast } from "@/components/ui/use-toast";
+import { getBrowserAuth } from "@/lib/client/auth";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -28,6 +28,8 @@ function LoginPageInner() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [signup, setSignup] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (errorParam === "auth") {
@@ -38,22 +40,17 @@ function LoginPageInner() {
   }, [errorParam]);
 
   function handleDemoClick() {
-    router.push(DEMO_MODE ? "/" : "/?demo=true");
+    if (DEMO_MODE) router.push("/");
   }
 
   function handleSignupClick() {
-    toast({
-      variant: "info",
-      title: "Đăng ký mở sau",
-      description: "Tính năng đăng ký sẽ được kích hoạt trong bản cập nhật sau.",
-    });
+    setSignup(v => !v); setFormError(null); setNotice(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
     if (!SUPABASE_ENABLED) {
-      handleDemoClick();
       return;
     }
 
@@ -62,18 +59,20 @@ function LoginPageInner() {
 
     setSubmitting(true);
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supabase = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
-        auth: { persistSession: true, autoRefreshToken: true },
-      });
-      const { error } = await supabase.auth.signInWithPassword({
+      const supabase = getBrowserAuth();
+      const { data, error } = await (signup ? supabase.auth.signUp({
+        email: trimmedEmail, password,
+        options: { emailRedirectTo: new URL("/auth/callback", window.location.origin).href },
+      }) : supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password,
-      });
+      }));
       if (error) {
         setFormError(error.message || "auth");
+      } else if (data.session) {
+        router.replace("/"); router.refresh();
       } else {
-        router.push("/");
+        setNotice("Kiểm tra email để xác nhận tài khoản rồi đăng nhập."); setSignup(false);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -105,9 +104,9 @@ function LoginPageInner() {
                 <ErrorState
                   variant="compact"
                   title="Kết nối Supabase chưa được cấu hình"
-                  body="Thêm NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY vào file .env.local để kích hoạt đăng nhập thực. Bạn vẫn có thể vào CHẾ ĐỘ MẪU để xem giao diện."
-                  secondaryLabel="Vào chế độ xem mẫu"
-                  onSecondary={handleDemoClick}
+                  body="Dịch vụ đăng nhập chưa được cấu hình."
+                  secondaryLabel={DEMO_MODE ? "Vào chế độ xem mẫu" : undefined}
+                  onSecondary={DEMO_MODE ? handleDemoClick : undefined}
                 />
                 <div className="flex justify-center mt-4">
                   <Badge variant={DEMO_MODE ? "solid" : "nodata"} size="sm">
@@ -131,6 +130,7 @@ function LoginPageInner() {
               </div>
             )}
 
+            {notice && <p role="status" className="mb-4 text-sm">{notice}</p>}
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="email">Email</Label>
@@ -151,7 +151,8 @@ function LoginPageInner() {
                   id="password"
                   type="password"
                   placeholder="••••••••"
-                  autoComplete="current-password"
+                  autoComplete={signup ? "new-password" : "current-password"}
+                  minLength={signup ? 6 : 1}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -165,8 +166,9 @@ function LoginPageInner() {
                   variant="ghost"
                   size="sm"
                   onClick={handleSignupClick}
+                  disabled={!SUPABASE_ENABLED || submitting}
                 >
-                  Tạo tài khoản mới
+                  {signup ? "Đã có tài khoản" : "Tạo tài khoản mới"}
                 </Button>
                 <Button
                   type="submit"
@@ -174,12 +176,12 @@ function LoginPageInner() {
                   disabled={!SUPABASE_ENABLED || submitting}
                 >
                   <Send className="w-4 h-4" />
-                  {submitting ? "Đang đăng nhập..." : "Đăng nhập"}
+                  {submitting ? "Đang xử lý…" : signup ? "Đăng ký" : "Đăng nhập"}
                 </Button>
               </div>
             </form>
 
-            {!SUPABASE_ENABLED && (
+            {DEMO_MODE && (
               <div className="mt-6 flex justify-center">
                 <Button
                   type="button"
@@ -194,7 +196,7 @@ function LoginPageInner() {
         </Card>
 
         <p className="text-xs text-muted-foreground text-center mt-6">
-          © 2026 Actically · Bản quyền mẫu theo MIT (đề xuất)
+          Actically · Học chủ động
         </p>
       </div>
     </main>

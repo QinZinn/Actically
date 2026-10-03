@@ -16,13 +16,14 @@ interface EvidenceQuoteProps {
 
 export default function EvidenceQuote({
   conceptId,
+  revision,
   excerpt,
   sourceRefs = [],
 }: EvidenceQuoteProps) {
   return (
     <Card className="bg-popover p-2 rounded border-border">
       <div className="text-xs text-muted-foreground mb-1">
-        Tham chiếu khái niệm
+        <Link href={`/knowledge?id=${encodeURIComponent(conceptId)}`} className="text-primary underline">Khái niệm r{revision}</Link>
       </div>
       <div className="text-sm">
         <MarkdownRenderer>{excerpt}</MarkdownRenderer>
@@ -31,17 +32,17 @@ export default function EvidenceQuote({
         <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-border/60">
           <span className="text-xs text-muted-foreground mr-1">Nguồn:</span>
           {sourceRefs.map((sr, idx) => (
-            <Link
+            <details
               key={idx}
-              href={`/knowledge?concept=${conceptId}`}
-              target="_blank"
-              rel="noopener noreferrer"
+              className="w-full text-xs"
             >
+              <summary className="cursor-pointer">
               <Badge variant="outline" size="sm" className="gap-1">
                 <BookOpen className="h-3 w-3" />
-                <span className="text-xs">Nguồn #{sr.sourceId.slice(0, 6)}</span>
+                <span className="text-xs">Nguồn #{sr.sourceId.slice(0, 6)} · r{sr.revision}</span>
               </Badge>
-            </Link>
+              </summary><blockquote className="p-2 border-l-2 border-border whitespace-pre-wrap">{sr.excerpt}</blockquote>
+            </details>
           ))}
         </div>
       )}

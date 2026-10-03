@@ -6,9 +6,7 @@ export * from "./errors";
 export * from "./utils";
 
 export function createActicallyClient(): ActicallyClient {
-  const isDemoEnv =
-    typeof process !== "undefined" &&
-    process?.env?.NEXT_PUBLIC_DEMO_MODE === "true";
+  const isDemoEnv = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
   if (isDemoEnv) {
     return new MockAdapter();

@@ -19,15 +19,18 @@ vi.mock("@/server/composition", () => ({
   getAiMetadata: () => ({ configured: true, model: "nvidia/test-nemotron", promptVersion: "actically-learning-v1" }),
 }));
 import { routeFetch } from "./route-fetch";
+import HttpAdapter from "@/lib/client/httpAdapter";
+import type { ChatRequest } from "@/contracts/requests";
 
 let database: Awaited<ReturnType<typeof setupDb>>;
 const transport = mockNebiusTransport();
 beforeAll(async () => {
+  vi.stubGlobal("fetch", routeFetch);
   database = await setupDb(); state.db = database.db;
   state.userId = await createUser(database.pg);
   state.ai = new NebiusLearningService({ apiKey: "synthetic-test-only", model: transport.model, fetch: transport.fetcher });
-});
-afterAll(async () => { await database?.pg.close(); });
+}, 30000);
+afterAll(async () => { vi.unstubAllGlobals(); await database?.pg.close(); });
 
 async function call(path: string, method = "GET", body?: unknown) {
   return routeFetch(`/api/v1/${path}`, { method, headers: { "Content-Type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -91,4 +94,79 @@ it("persists the real HTTP/auth-shim/PostgreSQL/provider-validated learning loop
   expect((await call("study-sets")).status).toBe(401);
   state.userId = owner;
   expect((await call("study-sets", "POST", { subject: "X", title: "X", description: "", userId: owner })).status).toBe(400);
+});
+
+it("runs the production HttpAdapter through every handler namespace and persisted retries", async () => {
+  state.userId = await createUser(database.pg);
+  const client = new HttpAdapter("/api/v1");
+  const profile = await client.getProfile();
+  expect((await client.updateProfile({ timezone: "Asia/Ho_Chi_Minh", displayName: "Người học" })).id).toBe(profile.id);
+  const set = await client.createStudySet({ subject: "Xác suất", title: "Bộ học HTTP", description: "" });
+  const updatedSet = await client.updateStudySet(set.id, { title: "Bộ học đã sửa", expectedRevision: set.revision });
+  expect((await client.listStudySets()).some(s => s.id === set.id)).toBe(true);
+  const source = await client.createSource(set.id, { title: "Tài liệu", content: "Với P(B) > 0, P(A|B) = P(A ∩ B) / P(B)." });
+  expect((await client.listSources(set.id))[0].id).toBe(source.id);
+  const session = await client.createSession({ studySetId: set.id, title: "Phiên HTTP", mode: "solve" });
+  const renamed = await client.updateSession(session.id, { title: "Đã đổi tên" });
+  expect((await client.getSession(session.id)).title).toBe(renamed.title);
+  expect((await client.listSessions({ studySetId: set.id })).some(s => s.id === session.id)).toBe(true);
+  async function chat(payload: ChatRequest) {
+    const events = []; for await (const event of client.streamChat(session.id, payload)) events.push(event);
+    return events;
+  }
+  const original: ChatRequest = { content: "Giải bài xác suất.", mode: "solve", followUpStep: null, requestId: crypto.randomUUID() };
+  const solved = await chat(original);
+  expect(solved.at(-1)?.event).toBe("done");
+  const followUp: ChatRequest = { content: "Giải thích bước 1.", mode: "ask", followUpStep: 1, requestId: crypto.randomUUID() };
+  const explained = await chat(followUp);
+  const calls = transport.calls.length;
+  expect(await chat(followUp)).toEqual([explained[0], explained.at(-1)]);
+  expect(transport.calls).toHaveLength(calls);
+  expect((await client.listMessages(session.id)).find(m => m.requestId === followUp.requestId)?.requestContext).toEqual({ mode: "ask", followUpStep: 1 });
+  await expect(chat({ ...followUp, mode: "socratic" })).rejects.toMatchObject({ code: "CONFLICT" });
+  const finish = { idempotencyKey: crypto.randomUUID() };
+  const extraction = await client.finishSession(session.id, finish);
+  expect(await client.finishSession(session.id, finish)).toEqual(extraction);
+  expect((await client.getSession(session.id)).status).toBe("ended");
+  const concept = await client.updateConcept(extraction.concepts[0].id, { status: "approved", expectedRevision: extraction.concepts[0].revision });
+  expect((await client.listConcepts({ studySetId: set.id, status: "approved" }))[0].id).toBe(concept.id);
+  const generation = { conceptId: concept.id, expectedConceptRevision: concept.revision, idempotencyKey: crypto.randomUUID() };
+  const card = await client.generateCard(generation);
+  expect((await client.generateCard(generation)).id).toBe(card.id);
+  const editedCard = await client.updateCard(card.id, { front: card.front, back: card.back, expectedRevision: card.revision });
+  expect((await client.listCards({ studySetId: set.id }))[0].revision).toBe(editedCard.revision);
+  const presentation = (await client.getDueQueue({ studySetId: set.id }))[0];
+  const grade = { presentationId: presentation.presentationId, expectedRevision: presentation.expectedRevision, rating: "good" as const, idempotencyKey: crypto.randomUUID() };
+  const graded = await client.gradeCard(card.id, grade);
+  expect(await client.gradeCard(card.id, grade)).toEqual(graded);
+  await expect(client.gradeCard(card.id, { ...grade, rating: "again" })).rejects.toMatchObject({ code: "CONFLICT" });
+  const refs = [{ conceptId: concept.id, revision: concept.revision }];
+  for (const kind of ["feynman", "blurting"] as const) {
+    const create = { studySetId: set.id, kind, learnerText: "Với P(B) > 0, P(A|B) = P(A ∩ B) / P(B).", referenceSnapshots: refs, idempotencyKey: crypto.randomUUID() };
+    const attempt = await client.createAttempt(create);
+    expect((await client.createAttempt(create)).id).toBe(attempt.id);
+    const evaluation = await client.evaluateAttempt(attempt.id);
+    expect((await client.evaluateAttempt(attempt.id)).id).toBe(evaluation.id);
+    const rewrite = { learnerText: create.learnerText + " Điều kiện P(B)>0.", idempotencyKey: crypto.randomUUID() };
+    const child = await client.retryAttempt(attempt.id, rewrite);
+    expect((await client.retryAttempt(attempt.id, rewrite)).id).toBe(child.id);
+    expect(child).toMatchObject({ retryOfId: attempt.id, referenceSnapshots: refs });
+    expect((await client.getAttempt(attempt.id)).evaluation?.id).toBe(evaluation.id);
+  }
+  expect(await client.listAttempts({ studySetId: set.id })).toHaveLength(4);
+  const topic = (await client.getProgress()).find(p => p.studySetId === set.id)!;
+  expect(topic).toMatchObject({ status: "growing", reviewCount: 1 });
+  expect(topic.assessmentObservations.map(o => o.kind).sort()).toEqual(["blurting", "feynman"]);
+  expect((await client.search("Đã đổi tên")).sessions.some(s => s.id === session.id)).toBe(true);
+  const manual = await client.createConcept({ studySetId: set.id, title: "Thủ công", body: "Nguồn tự ghi", sourceRefs: [] });
+  await client.deleteConcept(manual.id);
+  await client.updateSource(source.id, { expectedRevision: source.revision, title: "Tài liệu đã sửa" });
+  await client.deleteSource(source.id); await client.deleteCard(card.id); await client.deleteSession(session.id);
+  expect(await client.getDueQueue({ studySetId: set.id })).toEqual([]);
+  const archived = (await client.getProgress()).find(p => p.studySetId === set.id)!;
+  expect(archived.totalCardCount).toBe(0); expect(archived.assessmentObservations).toHaveLength(2);
+  await client.deleteStudySet(updatedSet.id);
+  expect(await client.listStudySets()).toEqual([]);
+  state.userId = null;
+  await expect(client.getProfile()).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { BrainCircuit, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { LearningSession, StudyMode, StudySet } from "@/contracts/dto";
@@ -18,8 +19,7 @@ interface NewSessionCardProps {
   recent?: LearningSession[];
 }
 
-export default function NewSessionCard({ recent: _recent = [] }: NewSessionCardProps) {
-  void _recent;
+export default function NewSessionCard({ recent = [] }: NewSessionCardProps) {
   const router = useRouter();
   const client = useActicallyClient();
   const [mode, setMode] = React.useState<StudyMode>("socratic");
@@ -125,7 +125,7 @@ export default function NewSessionCard({ recent: _recent = [] }: NewSessionCardP
               <SourceInputPaste
                 studySetId={studySetId}
                 studySets={studySets}
-                onStudySetCreated={(ss) => setStudySetId(ss.id)}
+                onStudySetCreated={(ss) => { setStudySets(prev => [...prev, ss]); setStudySetId(ss.id); }}
               />
             )}
 
@@ -138,6 +138,7 @@ export default function NewSessionCard({ recent: _recent = [] }: NewSessionCardP
           </div>
         </CardContent>
       </Card>
+      {recent.length > 0 && <section className="mt-6 space-y-2"><h2 className="font-semibold">Phiên học gần đây</h2>{recent.map(s => <Link key={s.id} href={`/sessions/${s.id}`} className="block rounded-lg border border-border p-3 text-sm hover:bg-popover">{s.title}</Link>)}</section>}
     </div>
   );
 }

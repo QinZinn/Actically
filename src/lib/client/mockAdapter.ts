@@ -1,3 +1,7 @@
+import * as requestSchemas from "@/contracts/requests";
+import { createEmptyCard } from "ts-fsrs";
+import { scheduler, RATINGS, toState, fromState, presentationIdOf, endOfLocalDay } from "@/lib/review-logic";
+import { cardStatus, topicStatus, POLICY_VERSION } from "@/lib/progress-policy";
 import type { ActicallyClient, ListQuery } from "@/contracts/client";
 import type {
   UserProfile,
@@ -48,9 +52,9 @@ import {
   practiceEvaluations as fixtureEvaluations,
   flashcards as fixtureCards,
   reviewEvents as fixtureReviewEvents,
-  topicProgress as fixtureTopicProgress,
-  reviewPresentations as fixturePresentations,
-  extractionResult as fixtureExtractionResult,
+
+
+
 } from "./fixtures";
 import { ActicallyClientError } from "./errors";
 import { uuidv4 } from "./utils";
@@ -93,9 +97,15 @@ export default class MockAdapter implements ActicallyClient {
   private cards: Flashcard[];
   private reviewEvents: typeof fixtureReviewEvents;
   private idempotency: IdempotencyStore;
+  private payloads = new Map<string, string>();
+  private checkPayload(key: string, input: unknown) {
+    const payload = JSON.stringify(input), previous = this.payloads.get(key);
+    if (previous && previous !== payload) conflict("Khóa đã dùng với nội dung khác.");
+    this.payloads.set(key, payload);
+  }
 
   constructor() {
-    this.profile = { ...fixtureProfile, connections: { ...fixtureProfile.connections } };
+    this.profile = { ...fixtureProfile, connections: { database: "unavailable", ai: "unavailable" } };
     this.studySets = fixtureStudySets.map((s) => ({ ...s }));
     this.sources = fixtureSources.map((s) => ({ ...s }));
     this.concepts = fixtureConcepts.map((c) => ({ ...c, sourceRefs: c.sourceRefs.map((r) => ({ ...r })) }));
@@ -164,6 +174,7 @@ export default class MockAdapter implements ActicallyClient {
     this.sources = this.sources.filter((s) => s.studySetId !== id);
     this.concepts = this.concepts.filter((c) => c.studySetId !== id);
     this.cards = this.cards.filter((c) => c.studySetId !== id);
+    this.sessions = this.sessions.map(s => s.studySetId === id ? { ...s, studySetId: null, updatedAt: NOW() } : s);
     return delay(undefined);
   }
 
@@ -269,123 +280,77 @@ export default class MockAdapter implements ActicallyClient {
     })));
   }
 
-  private buildSolveResult(): SolveResult {
-    return {
-      steps: [
-        {
-          number: 1,
-          action: "Đặt ký hiệu các biến cố",
-          explanation: "Dựa vào đề bài, xác định các tập hợp và biến cố liên quan, viết lại rõ |Ω| và các đại lượng.",
-          principle: "Mô hình hóa bài toán xác suất thành các biến cố.",
-        },
-        {
-          number: 2,
-          action: "Nhận dạng yêu cầu",
-          explanation: "Xác định đây là xác suất có điều kiện P(A|B), xác định điều kiện B.",
-          principle: "Định nghĩa P(A|B) = P(A∩B)/P(B).",
-        },
-        {
-          number: 3,
-          action: "Tính P(B) và P(A∩B)",
-          explanation: "Đếm số phần tử hoặc dùng các xác suất đã có, viết dưới dạng phân số.",
-          principle: "Định nghĩa cổ điển.",
-        },
-        {
-          number: 4,
-          action: "Áp dụng công thức",
-          explanation: "Thay số vào và rút gọn phân số.",
-          principle: "Công thức xác suất có điều kiện.",
-        },
-        {
-          number: 5,
-          action: "Kết luận",
-          explanation: "Trình bày kết quả cuối cùng bằng lời tự nhiên.",
-          principle: "Diễn giải kết quả.",
-        },
-      ],
-      comprehensionCheck: "Nếu tăng số học sinh thích cả hai lên 8 thì P(Đ|C) đổi bao nhiêu?",
-      sourceRefs: [{ sourceId: "fx-src-1", revision: 1, excerpt: "P(A|B) = P(A ∩ B) / P(B)." }],
-    };
+  private buildSolveResult(session: LearningSession): SolveResult {
+    const source = this.sources.find(s => s.studySetId === session.studySetId);
+    return { steps: [
+      { number: 1, action: "Đọc đề và xác định dữ kiện", explanation: "Đây là bước giải mẫu trong chế độ mô phỏng.", principle: "Làm rõ điều đã biết và yêu cầu." },
+      { number: 2, action: "Chọn nguyên lý phù hợp", explanation: "Đối chiếu nguyên lý với nguồn đã liên kết.", principle: "Dùng bằng chứng tham chiếu." },
+      { number: 3, action: "Kiểm tra kết quả", explanation: "Thử áp dụng lại nguyên lý và kiểm tra điều kiện.", principle: "Kiểm tra tính nhất quán." },
+    ], comprehensionCheck: "Hãy giải thích vì sao nguyên lý này phù hợp với đề bài.",
+      sourceRefs: source ? [{ sourceId: source.id, revision: source.revision, excerpt: source.content.slice(0, 4000) }] : [] };
   }
 
-  async *streamChat(
-    sessionId: string,
-    input: ChatRequest,
-    signal?: AbortSignal,
-  ): AsyncIterable<ChatEvent> {
-    const sess = this.sessions.find((s) => s.id === sessionId);
+  async *streamChat(sessionId: string, input: ChatRequest, signal?: AbortSignal): AsyncIterable<ChatEvent> {
+    const sess = this.sessions.find(s => s.id === sessionId);
     if (!sess) notFound("LearningSession", sessionId);
-
-    const requestId = input.requestId;
-    const userMessageId = "m-u-" + uuidv4().slice(0, 8);
-    const assistantMessageId = "m-a-" + uuidv4().slice(0, 8);
-
-    const mode = input.mode ?? sess.mode;
-
-    yield {
-      event: "meta",
-      data: { requestId, sessionId, userMessageId, assistantMessageId },
-    };
-
-    await new Promise((r) => setTimeout(r, 20));
-
-    if (signal?.aborted) return;
-
-    let assistantContent = "";
-    if (mode === "socratic") {
-      assistantContent = "Đây là câu hỏi gợi ý để em tự suy nghĩ nhé: Em có thể mô tả lại không gian mẫu trong bài toán này, và nêu rõ điều kiện gì đã biết để áp dụng công thức xác suất có điều kiện không?";
-    } else if (mode === "solve") {
-      assistantContent = "Chào em, đây là bài giải chi tiết từng bước:\n\n1. Đặt ký hiệu các biến cố tương ứng với đề bài.\n2. Nhận dạng đây là bài toán xác suất có điều kiện.\n3. Tính các xác suất thành phần.\n4. Áp dụng công thức P(A|B) = P(A∩B)/P(B).\n5. Rút gọn và kết luận.\n\nKết quả cuối cùng được trình bày rõ ràng bên dưới.";
-    } else {
-      assistantContent = "Trả lời ngắn gọn: Xác suất có điều kiện P(A|B) đo khả năng A xảy ra khi biết B đã xảy ra, công thức là P(A|B) = P(A∩B) / P(B) với P(B) > 0. Nó khác P(B|A), đừng nhầm lẫn nhé.";
+    this.checkPayload("chat:" + input.requestId, { sessionId, ...requestSchemas.chatRequestSchema.parse(input) });
+    if (sess.status === "ended") conflict("Phiên đã kết thúc");
+    if (signal?.aborted) throw signal.reason;
+    let user = this.messages.find(m => m.requestId === input.requestId && m.role === "user");
+    let assistant = this.messages.find(m => m.requestId === input.requestId && m.role === "assistant");
+    if (!user || !assistant) {
+      const base = { sessionId, requestId: input.requestId, requestContext: { mode: input.mode, followUpStep: input.followUpStep },
+        solve: null, createdAt: NOW(), updatedAt: NOW() };
+      user = { ...base, id: uuidv4(), role: "user", content: input.content, status: "completed" };
+      assistant = { ...base, id: uuidv4(), role: "assistant", content: "", status: "streaming" };
+      this.messages.push(user, assistant);
     }
-
-    const chunks = assistantContent.match(/.{1,30}/gs) ?? [assistantContent];
-    for (const chunk of chunks) {
-      if (signal?.aborted) return;
-      yield { event: "delta", data: { requestId, text: chunk } };
-      await new Promise((r) => setTimeout(r, 10));
+    const reply = assistant;
+    yield { event: "meta", data: { requestId: input.requestId, sessionId, userMessageId: user.id, assistantMessageId: reply.id } };
+    if (reply.status === "completed") { yield { event: "done", data: { requestId: input.requestId, message: structuredClone(reply) } }; return; }
+    reply.content = ""; reply.status = "streaming";
+    const answer = input.mode === "socratic" ? "Phản hồi mẫu: Bạn đã biết những dữ kiện nào? Hãy thử nêu nguyên lý và giải thích bằng lời của mình." :
+      input.mode === "solve" ? "Bài giải mẫu để minh họa giao diện. Các bước được trình bày bên dưới." :
+        "Phản hồi mẫu: Hãy đối chiếu câu hỏi với nguồn và các khái niệm đã duyệt. Chế độ mẫu không gọi mô hình AI.";
+    try {
+      for (const chunk of answer.match(/.{1,30}/gs) ?? []) {
+        signal?.throwIfAborted();
+        reply.content += chunk;
+        yield { event: "delta", data: { requestId: input.requestId, text: chunk } };
+        await delay(undefined, 10);
+      }
+      signal?.throwIfAborted();
+      reply.status = "completed"; reply.solve = input.mode === "solve" ? this.buildSolveResult(sess) : null; reply.updatedAt = NOW();
+      yield { event: "done", data: { requestId: input.requestId, message: structuredClone(reply) } };
+    } finally {
+      if (reply.status !== "completed") { reply.status = signal?.aborted ? "cancelled" : "failed"; reply.updatedAt = NOW(); }
     }
-
-    if (signal?.aborted) return;
-
-    const now = NOW();
-    const userMsg: Message = {
-      id: userMessageId,
-      sessionId,
-      role: "user",
-      content: input.content,
-      status: "completed",
-      solve: null,
-      requestId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    const asstMsg: Message = {
-      id: assistantMessageId,
-      sessionId,
-      role: "assistant",
-      content: assistantContent,
-      status: "completed",
-      solve: mode === "solve" ? this.buildSolveResult() : null,
-      requestId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.messages.push(userMsg, asstMsg);
-
-    yield { event: "done", data: { requestId, message: asstMsg } };
   }
 
   async finishSession(sessionId: string, input: ExtractionRequest): Promise<ExtractionResult> {
-    const key = `finish:${input.idempotencyKey}`;
-    if (this.idempotency.has(key)) return delay({ ...(this.idempotency.get(key) as ExtractionResult) });
-    const sess = this.sessions.find((s) => s.id === sessionId);
+    const key = "finish:" + input.idempotencyKey;
+    this.checkPayload(key, { sessionId });
+    if (this.idempotency.has(key)) return delay(structuredClone(this.idempotency.get(key) as ExtractionResult));
+    const sess = this.sessions.find(s => s.id === sessionId);
     if (!sess) notFound("LearningSession", sessionId);
-    const idx = this.sessions.findIndex((s) => s.id === sessionId);
-    this.sessions[idx] = { ...sess, status: "ended", updatedAt: NOW() };
-    this.idempotency.set(key, { ...fixtureExtractionResult });
-    return delay({ ...fixtureExtractionResult });
+    if (!sess.studySetId) throw new ActicallyClientError({ code: "VALIDATION_ERROR", message: "Chọn bộ học trước khi trích xuất.", requestId: uuidv4(), retryable: false });
+    const source = this.sources.find(s => s.studySetId === sess.studySetId);
+    const userMessage = this.messages.find(m => m.sessionId === sessionId && m.role === "user");
+    const concepts: Concept[] = sess.studySetId && userMessage ? [{
+      id: uuidv4(), studySetId: sess.studySetId, title: source?.title ?? sess.title,
+      body: source?.content.slice(0, 8000) ?? userMessage.content.slice(0, 8000),
+      sourceRefs: source ? [{ sourceId: source.id, revision: source.revision, excerpt: source.content.slice(0, 4000) }] : [],
+      status: "pending", revision: 1, createdAt: NOW(), updatedAt: NOW(),
+    }] : [];
+    const normalize = (title: string) => title.normalize("NFKC").toLocaleLowerCase("vi").replace(/\s+/g, " ").trim();
+    const duplicateWarnings = concepts.flatMap(candidate => this.concepts
+      .filter(c => c.studySetId === sess.studySetId && c.status !== "rejected" && normalize(c.title) === normalize(candidate.title))
+      .map(c => ({ title: candidate.title, existingConceptId: c.id })));
+    this.concepts.push(...concepts);
+    sess.status = "ended"; sess.updatedAt = NOW();
+    const result = { concepts, duplicateWarnings };
+    this.idempotency.set(key, structuredClone(result));
+    return delay(structuredClone(result));
   }
 
   async listAttempts(query?: ListQuery): Promise<PracticeAttempt[]> {
@@ -408,7 +373,13 @@ export default class MockAdapter implements ActicallyClient {
 
   async createAttempt(input: PracticeCreate): Promise<PracticeAttempt> {
     const key = `createAttempt:${input.idempotencyKey}`;
+    this.checkPayload(key, requestSchemas.practiceCreateSchema.parse(input));
     if (this.idempotency.has(key)) return delay({ ...(this.idempotency.get(key) as PracticeAttempt) });
+    if (!this.studySets.some(s => s.id === input.studySetId)) notFound("StudySet", input.studySetId);
+    for (const ref of input.referenceSnapshots) {
+      const c = this.concepts.find(c => c.id === ref.conceptId);
+      if (!c || c.studySetId !== input.studySetId || c.status !== "approved" || c.revision !== ref.revision) conflict("Tham chiếu khái niệm không còn hợp lệ.");
+    }
     const now = NOW();
     const a: PracticeAttempt = {
       id: uuidv4(),
@@ -456,22 +427,22 @@ export default class MockAdapter implements ActicallyClient {
         att.kind === "feynman"
           ? {
               kind: "feynman",
-              sufficientEvidence: true,
-              summary: "Bài trình bày tương đối rõ. Cần bổ sung thêm ví dụ tính toán cụ thể.",
+              sufficientEvidence: false,
+              summary: "Nhận xét mẫu: chưa gọi mô hình AI để đối chiếu bằng chứng và đánh giá bài viết.",
               observations: [],
-              scores: { clarity: 6, completeness: 5, accuracy: 5 },
+              scores: { clarity: null, completeness: null, accuracy: null },
             }
           : {
               kind: "blurting",
-              sufficientEvidence: true,
-              summary: "Nhớ được phần lớn các ý chính, còn thiếu một vài chi tiết nhỏ.",
+              sufficientEvidence: false,
+              summary: "Nhận xét mẫu: chưa gọi mô hình AI để đối chiếu nội dung nhớ lại với bằng chứng.",
               observations: [],
               correct: [],
               missing: [],
               incorrect: [],
             },
       promptVersion: "review-spec-v1",
-      model: "gpt-demo-mock",
+      model: "actically-demo",
       createdAt: now,
     };
     this.evaluations.push(ev);
@@ -484,6 +455,7 @@ export default class MockAdapter implements ActicallyClient {
 
   async retryAttempt(id: string, input: PracticeRetry): Promise<PracticeAttempt> {
     const key = `retryAttempt:${input.idempotencyKey}`;
+    this.checkPayload(key, { id, ...requestSchemas.practiceRetrySchema.parse(input) });
     if (this.idempotency.has(key)) return delay({ ...(this.idempotency.get(key) as PracticeAttempt) });
     const prev = this.attempts.find((a) => a.id === id);
     if (!prev) notFound("PracticeAttempt", id);
@@ -557,48 +529,26 @@ export default class MockAdapter implements ActicallyClient {
   }
 
   async generateCard(input: CardGenerate): Promise<Flashcard> {
-    const key = `generateCard:${input.idempotencyKey}`;
-    if (this.idempotency.has(key)) return delay({ ...(this.idempotency.get(key) as Flashcard) });
-    const concept = this.concepts.find((c) => c.id === input.conceptId);
+    const key = "generateCard:" + input.idempotencyKey;
+    this.checkPayload(key, requestSchemas.cardGenerateSchema.parse(input));
+    if (this.idempotency.has(key)) {
+      const prior = this.idempotency.get(key) as Flashcard;
+      const current = this.cards.find(c => c.id === prior.id);
+      if (!current) notFound("Flashcard", prior.id);
+      return delay(structuredClone(current));
+    }
+    const concept = this.concepts.find(c => c.id === input.conceptId);
     if (!concept) notFound("Concept", input.conceptId);
+    if (concept.status !== "approved") throw new ActicallyClientError({ code: "VALIDATION_ERROR", message: "Khái niệm cần được duyệt.", requestId: uuidv4(), retryable: false });
     if (input.expectedConceptRevision !== concept.revision) conflict("revision mismatch");
-    const now = NOW();
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 1);
-    const c: Flashcard = {
-      id: uuidv4(),
-      conceptId: concept.id,
-      studySetId: concept.studySetId,
-      front: concept.title,
-      back: concept.body.slice(0, 500),
-      sourceRefs: concept.sourceRefs.map((r) => ({ ...r })),
-      revision: 1,
-      scheduler: {
-        due: dueDate.toISOString(),
-        stability: 1,
-        difficulty: 5,
-        elapsed_days: 0,
-        scheduled_days: 1,
-        learning_steps: 0,
-        reps: 0,
-        lapses: 0,
-        state: 0,
-        last_review: null,
-      },
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.cards.push(c);
-    this.idempotency.set(key, {
-      ...c,
-      sourceRefs: c.sourceRefs.map((r) => ({ ...r })),
-      scheduler: { ...c.scheduler },
-    });
-    return delay({
-      ...c,
-      sourceRefs: c.sourceRefs.map((r) => ({ ...r })),
-      scheduler: { ...c.scheduler },
-    });
+    const old = this.cards.find(c => c.conceptId === concept.id);
+    const card: Flashcard = { id: old?.id ?? uuidv4(), conceptId: concept.id, studySetId: concept.studySetId,
+      front: concept.title, back: concept.body, sourceRefs: structuredClone(concept.sourceRefs),
+      revision: (old?.revision ?? 0) + 1, scheduler: old?.scheduler ?? toState(createEmptyCard(new Date())),
+      createdAt: old?.createdAt ?? NOW(), updatedAt: NOW() };
+    this.cards = [...this.cards.filter(c => c.id !== card.id), card];
+    this.idempotency.set(key, structuredClone(card));
+    return delay(structuredClone(card));
   }
 
   async listCards(query?: ListQuery): Promise<Flashcard[]> {
@@ -643,67 +593,45 @@ export default class MockAdapter implements ActicallyClient {
   }
 
   async getDueQueue(query?: ListQuery): Promise<ReviewPresentation[]> {
-    let list = fixturePresentations.slice();
-    if (query?.studySetId) list = list.filter((p) => p.card.studySetId === query.studySetId);
-    if (typeof query?.offset === "number") list = list.slice(query.offset);
-    if (typeof query?.limit === "number") list = list.slice(0, query.limit);
-    return delay(list.map((p) => ({
-      ...p,
-      card: {
-        ...p.card,
-        sourceRefs: p.card.sourceRefs.map((r) => ({ ...r })),
-        scheduler: { ...p.card.scheduler },
-      },
-    })));
+    const cutoff = endOfLocalDay(new Date(), this.profile.timezone);
+    let list = this.cards.filter(c => new Date(c.scheduler.due) < cutoff && (!query?.studySetId || c.studySetId === query.studySetId))
+      .sort((a, b) => Date.parse(a.scheduler.due) - Date.parse(b.scheduler.due));
+    list = list.slice(query?.offset ?? 0, (query?.offset ?? 0) + (query?.limit ?? 50));
+    return delay(list.map(c => ({ card: structuredClone(c), presentationId: presentationIdOf(c.id, c.revision), expectedRevision: c.revision, dueAt: c.scheduler.due })));
   }
 
   async gradeCard(cardId: string, input: GradeRequest): Promise<GradeResult> {
-    const key = `gradeCard:${input.idempotencyKey}`;
+    const key = "gradeCard:" + input.idempotencyKey;
+    this.checkPayload(key, { cardId, ...requestSchemas.gradeRequestSchema.parse(input) });
     if (this.idempotency.has(key)) return delay({ ...(this.idempotency.get(key) as GradeResult) });
-    const idx = this.cards.findIndex((c) => c.id === cardId);
-    if (idx < 0) notFound("Flashcard", cardId);
-    const cur = this.cards[idx];
-    if (input.expectedRevision !== cur.revision) conflict("revision mismatch");
-    const now = NOW();
-    const newDue = new Date();
-    const multiplier = input.rating === "again" ? 0.5 : input.rating === "hard" ? 1.2 : input.rating === "good" ? 2.5 : 5;
-    newDue.setDate(newDue.getDate() + Math.max(1, Math.round(cur.scheduler.scheduled_days * multiplier)));
-    const next: Flashcard = {
-      ...cur,
-      revision: cur.revision + 1,
-      updatedAt: now,
-      sourceRefs: cur.sourceRefs.map((r) => ({ ...r })),
-      scheduler: {
-        ...cur.scheduler,
-        due: newDue.toISOString(),
-        reps: cur.scheduler.reps + 1,
-        lapses: cur.scheduler.lapses + (input.rating === "again" ? 1 : 0),
-        last_review: now,
-        state: (input.rating === "again" ? 1 : Math.min(3, cur.scheduler.state + 1)) as 0 | 1 | 2 | 3,
-        scheduled_days: Math.round(cur.scheduler.scheduled_days * multiplier) || 1,
-      },
-    };
-    this.cards[idx] = next;
-    this.reviewEvents.push({
-      id: uuidv4(),
-      cardId,
-      presentationId: input.presentationId,
-      rating: input.rating,
-      reviewedAt: now,
-      revisionBefore: cur.revision,
-      revisionAfter: next.revision,
-    });
-    const result: GradeResult = { cardId, revision: next.revision, dueAt: next.scheduler.due };
-    this.idempotency.set(key, { ...result });
+    const card = this.cards.find(c => c.id === cardId);
+    if (!card) notFound("Flashcard", cardId);
+    if (input.expectedRevision !== card.revision || input.presentationId !== presentationIdOf(cardId, card.revision)) conflict("Lượt trình bày thẻ đã thay đổi");
+    const now = new Date(), before = card.revision;
+    card.scheduler = toState(scheduler.next(fromState(card.scheduler), now, RATINGS[input.rating]).card);
+    card.revision++; card.updatedAt = now.toISOString();
+    this.reviewEvents.push({ id: uuidv4(), cardId, presentationId: input.presentationId, rating: input.rating,
+      reviewedAt: now.toISOString(), revisionBefore: before, revisionAfter: card.revision });
+    const result = { cardId, revision: card.revision, dueAt: card.scheduler.due };
+    this.idempotency.set(key, result);
     return delay({ ...result });
   }
 
   async getProgress(): Promise<TopicProgress[]> {
-    return delay(fixtureTopicProgress.map((t) => ({
-      ...t,
-      reviewEvidence: t.reviewEvidence.map((e) => ({ ...e })),
-      assessmentObservations: t.assessmentObservations.map((o) => ({ ...o })),
-    })));
+    return delay(this.studySets.map(s => {
+      const cards = this.cards.filter(c => c.studySetId === s.id);
+      const windows = cards.map(c => this.reviewEvents.filter(e => e.cardId === c.id)
+        .sort((a, b) => Date.parse(b.reviewedAt) - Date.parse(a.reviewedAt)).slice(0, 5));
+      const statuses = windows.map(w => cardStatus(w.map(e => e.rating)));
+      const reviewEvidence = windows.flat().sort((a, b) => Date.parse(b.reviewedAt) - Date.parse(a.reviewedAt));
+      const assessmentObservations = this.evaluations.filter(e => this.attempts.some(a => a.id === e.attemptId && a.studySetId === s.id))
+        .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 10)
+        .map(e => ({ attemptId: e.attemptId, kind: e.result.kind, summary: e.result.summary, sufficientEvidence: e.result.sufficientEvidence, createdAt: e.createdAt }));
+      const latest = Math.max(Date.parse(reviewEvidence[0]?.reviewedAt ?? "") || 0, Date.parse(assessmentObservations[0]?.createdAt ?? "") || 0);
+      return { studySetId: s.id, title: s.title, status: topicStatus(statuses), policyVersion: POLICY_VERSION,
+        eligibleCardCount: statuses.filter(x => x !== "nodata").length, totalCardCount: cards.length, reviewCount: reviewEvidence.length,
+        latestAssessmentAt: latest ? new Date(latest).toISOString() : null, reviewEvidence: structuredClone(reviewEvidence), assessmentObservations };
+    }));
   }
 
   async search(query: string): Promise<SearchResult> {

@@ -10,7 +10,7 @@ import MarkdownRenderer from "@/components/markdown/MarkdownRenderer";
 
 interface ComprehensionCheckProps {
   check: string;
-  onAnswer?: (ans: string) => void;
+  onAnswer?: (ans: string) => Promise<boolean>;
 }
 
 export default function ComprehensionCheck({
@@ -18,11 +18,13 @@ export default function ComprehensionCheck({
   onAnswer,
 }: ComprehensionCheckProps) {
   const [answer, setAnswer] = React.useState("");
+  const [sending, setSending] = React.useState(false);
 
-  const handleSubmit = () => {
-    if (!answer.trim()) return;
-    onAnswer?.(answer.trim());
-    setAnswer("");
+  const handleSubmit = async () => {
+    if (!answer.trim() || !onAnswer || sending) return;
+    setSending(true);
+    try { if (await onAnswer(answer.trim())) setAnswer(""); }
+    finally { setSending(false); }
   };
 
   return (
@@ -39,12 +41,14 @@ export default function ComprehensionCheck({
       <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-end">
         <Textarea
           rows={2}
+          aria-label="Câu trả lời kiểm tra hiểu"
+          maxLength={16000}
           placeholder="Trả lời ngắn gọn của bạn…"
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           className="flex-1 resize-none"
         />
-        <Button size="sm" onClick={handleSubmit} disabled={!answer.trim()}>
+        <Button size="sm" onClick={handleSubmit} disabled={!answer.trim() || !onAnswer || sending}>
           <Send className="w-4 h-4" />
           Gửi câu trả lời
         </Button>

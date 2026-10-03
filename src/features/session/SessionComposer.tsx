@@ -8,16 +8,19 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useActicallyClient } from "@/features/client-provider";
 import ModeSelector from "./ModeSelector";
+import { useDraft } from "@/lib/client/useDraft";
 import SourceInputPaste from "./SourceInputPaste";
 
 const MAX_CHARS = 16000;
 
 interface SessionComposerProps {
+  draftKey?: string;
+  disabled?: boolean;
   mode: StudyMode;
   onModeChange: (mode: StudyMode) => void;
   studySetId: string | null;
   onStudySetChange: (id: string | null) => void;
-  onSend: (mode: StudyMode, content: string) => void;
+  onSend: (mode: StudyMode, content: string) => Promise<boolean>;
   sending: boolean;
   onCancel: () => void;
   sourcePasteOpen?: boolean;
@@ -27,6 +30,8 @@ interface SessionComposerProps {
 export default function SessionComposer({
   mode,
   onModeChange,
+  disabled = false,
+  draftKey = "new",
   studySetId,
   onStudySetChange,
   onSend,
@@ -36,7 +41,7 @@ export default function SessionComposer({
   onToggleSourcePaste,
 }: SessionComposerProps) {
   const client = useActicallyClient();
-  const [content, setContent] = React.useState("");
+  const [content, setContent] = useDraft("actically:session-draft:" + draftKey);
   const [studySets, setStudySets] = React.useState<StudySet[]>([]);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -56,11 +61,11 @@ export default function SessionComposer({
     };
   }, [client]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = content.trim();
     if (!trimmed || sending) return;
-    onSend(mode, trimmed);
-    setContent("");
+    const success = await onSend(mode, trimmed);
+    if (success) setContent("");
     const el = textareaRef.current;
     if (el) {
       el.style.height = "auto";
@@ -90,9 +95,11 @@ export default function SessionComposer({
     <div className="sticky bottom-0 z-10 bg-background/90 backdrop-blur border-t border-border p-4">
       <div className="max-w-4xl mx-auto space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <ModeSelector value={mode} onChange={onModeChange} />
+          <ModeSelector value={mode} onChange={onModeChange} disabled={sending || disabled} />
           <div className="flex items-center gap-2">
             <Select
+              aria-label="Bộ học của phiên"
+              disabled={sending || disabled}
               value={studySetId ?? ""}
               onChange={(e) => onStudySetChange(e.target.value || null)}
               className="w-auto min-w-[200px]"
@@ -109,6 +116,7 @@ export default function SessionComposer({
                 variant="ghost"
                 size="sm"
                 onClick={onToggleSourcePaste}
+                disabled={sending || disabled}
                 className="gap-1"
               >
                 Nguồn (dán)
@@ -126,7 +134,7 @@ export default function SessionComposer({
           <SourceInputPaste
             studySetId={studySetId}
             studySets={studySets}
-            onStudySetCreated={(ss) => onStudySetChange(ss.id)}
+            onStudySetCreated={(ss) => { setStudySets(prev => [...prev, ss]); onStudySetChange(ss.id); }}
           />
         )}
 
@@ -141,7 +149,7 @@ export default function SessionComposer({
               autoResize(e.currentTarget);
             }}
             onKeyDown={handleKeyDown}
-            disabled={sending}
+            disabled={sending || disabled}
             maxLength={MAX_CHARS}
             className="pr-24 resize-none"
           />
@@ -155,7 +163,8 @@ export default function SessionComposer({
               <Button
                 size="sm"
                 onClick={handleSend}
-                disabled={!content.trim() || sending}
+                aria-label="Gửi tin nhắn"
+                disabled={!content.trim() || sending || disabled}
               >
                 <Send className="w-4 h-4" />
               </Button>

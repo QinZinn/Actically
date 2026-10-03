@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Inbox, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ const MAX_CHARS = 16000;
 const MIN_CHARS = 20;
 
 interface FeynmanWriterProps {
+  value?: string;
   selectedReferenceSnapshots: ConceptRef[];
   onSubmit: (learnerText: string, idempotencyKey: string) => void;
   draftId: string;
@@ -22,22 +23,12 @@ export default function FeynmanWriter({
   selectedReferenceSnapshots,
   onSubmit,
   draftId,
+  value,
   onDraftChange,
 }: FeynmanWriterProps) {
-  const storageKey = `practice-feynman-draft-${draftId}`;
-  const [text, setText] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return window.localStorage.getItem(storageKey) ?? "";
-    }
-    return "";
-  });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey, text);
-    }
-    onDraftChange(text);
-  }, [text, storageKey, onDraftChange]);
+  void draftId;
+  const [localText, setText] = useState("");
+  const text = value ?? localText;
 
   const refCount = selectedReferenceSnapshots.length;
   const canSubmit = refCount > 0 && text.length >= MIN_CHARS && text.length <= MAX_CHARS;
@@ -87,7 +78,8 @@ export default function FeynmanWriter({
       <div className="flex-1 flex flex-col min-h-0">
         <Textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          aria-label="Bài giải thích Feynman"
+          onChange={(e) => { setText(e.target.value); onDraftChange(e.target.value); }}
           placeholder="Giải thích như bạn đang nói với học sinh lớp 10. Dùng ví dụ thực tế, công thức nếu cần (16.000 ký tự)…"
           className={cn(
             "flex-1 min-h-[300px] w-full p-4 text-sm leading-6",

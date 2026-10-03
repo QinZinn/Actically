@@ -15,16 +15,18 @@ interface MessageBubbleProps {
   message: Message;
   onRetry?: (m: Message) => void;
   onFollowUpSolveStep?: (msg: Message, stepNumber: number) => void;
+  onAnswer?: (msg: Message, answer: string) => Promise<boolean>;
 }
 
 export default function MessageBubble({
   message,
   onRetry,
   onFollowUpSolveStep,
+  onAnswer,
 }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
-  const isFailed = message.status === "failed";
+  const isFailed = message.status === "failed" || message.status === "cancelled";
 
   const roleLabel = isUser ? "Bạn" : "Trợ lý";
 
@@ -45,7 +47,7 @@ export default function MessageBubble({
           ) : isFailed ? (
             <Badge variant="destructive" size="sm">
               <XCircle className="w-3 h-3" />
-              Lỗi
+              {message.status === "cancelled" ? "Đã hủy" : "Lỗi"}
             </Badge>
           ) : (
             <Badge variant="secondary" size="sm">
@@ -60,18 +62,7 @@ export default function MessageBubble({
               onClick={() => onRetry(message)}
             >
               <RefreshCw className="w-3 h-3" />
-              Thử lại
-            </Button>
-          )}
-          {!isUser && !isStreaming && !isFailed && message.solve && (
-            <Button
-              variant="ghost"
-              size="xs"
-              className="h-5 text-xs px-2 gap-1 text-muted-foreground hover:text-foreground"
-              onClick={() => onRetry?.(message)}
-            >
-              <RefreshCw className="w-3 h-3" />
-              Sửa câu trả lời
+              {message.requestContext ? "Thử lại" : "Gửi mới"}
             </Button>
           )}
         </div>
@@ -103,7 +94,7 @@ export default function MessageBubble({
               }
             />
             {message.solve.comprehensionCheck && (
-              <ComprehensionCheck check={message.solve.comprehensionCheck} />
+              <ComprehensionCheck check={message.solve.comprehensionCheck} onAnswer={onAnswer ? a => onAnswer(message, a) : undefined} />
             )}
           </div>
         )}

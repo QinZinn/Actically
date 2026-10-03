@@ -1,126 +1,91 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import HttpAdapter from "@/lib/client/httpAdapter";
-import { ActicallyClientError } from "@/lib/client/errors";
+import { userProfile, sources, flashcards, topicProgress } from "@/lib/client/fixtures";
+import type { ChatEvent } from "@/contracts/sse";
+const client = new HttpAdapter("/api/v1");
+const input = { requestId: "request-1", mode: "ask" as const, followUpStep: null, content: "hello" };
+const frame = (event: string, data: unknown) => `event: ${event}\r\ndata: ${JSON.stringify(data)}\r\n\r\n`;
+const meta = frame("meta", { requestId: input.requestId, sessionId: "s1", userMessageId: "u1", assistantMessageId: "a1" });
+const message = { id: "a1", sessionId: "s1", role: "assistant", content: "Xin chào", status: "completed", solve: null,
+  requestId: input.requestId, requestContext: { mode: "ask", followUpStep: null }, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
+const done = frame("done", { requestId: input.requestId, message });
+afterEach(() => { vi.unstubAllGlobals(); });
+function response(value: unknown, status = 200) { vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(value, { status }))); }
+function stream(text: string, byteByByte = false) {
+  const bytes = new TextEncoder().encode(text);
+  const body = new ReadableStream<Uint8Array>({ start(c) {
+    if (byteByByte) for (const byte of bytes) c.enqueue(Uint8Array.of(byte)); else c.enqueue(bytes);
+    c.close();
+  } });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { headers: { "content-type": "text/event-stream" } })));
+}
+async function events(signal?: AbortSignal) { const result: ChatEvent[] = []; for await (const event of client.streamChat("s1", input, signal)) result.push(event); return result; }
 
-describe("HttpAdapter error mapping and SSE parse", () => {
-  let client: HttpAdapter;
-  const originalFetch = globalThis.fetch;
-
-  beforeEach(() => {
-    client = new HttpAdapter("/api/v1");
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.restoreAllMocks();
-  });
-
-  it("maps 401 with error body JSON to UNAUTHENTICATED code + requestId", async () => {
-    const mockResponse = {
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-      headers: {
-        get: (h: string) => (h.toLowerCase() === "content-type" ? "application/json" : null),
-      } as Headers,
-      json: async () => ({
-        error: {
-          code: "UNAUTHENTICATED",
-          message: "x",
-          requestId: "r1",
-          retryable: false,
-        },
-      }),
-    };
-    globalThis.fetch = vi.fn().mockResolvedValue(mockResponse);
-
-    await expect(client.getProfile()).rejects.toMatchObject({
-      code: "UNAUTHENTICATED",
-      requestId: "r1",
-      name: "ActicallyClientError",
-    });
-  });
-
-  it("maps 404 status to NOT_FOUND code + requestId", async () => {
-    const mockResponse = {
-      ok: false,
-      status: 404,
-      statusText: "Not Found",
-      headers: {
-        get: (h: string) => (h.toLowerCase() === "content-type" ? "application/json" : null),
-      } as Headers,
-      json: async () => ({
-        error: {
-          code: "NOT_FOUND",
-          message: "resource not found",
-          requestId: "r2",
-          retryable: false,
-        },
-      }),
-    };
-    globalThis.fetch = vi.fn().mockResolvedValue(mockResponse);
-
-    await expect(client.getProfile()).rejects.toMatchObject({
-      code: "NOT_FOUND",
-      requestId: "r2",
-      name: "ActicallyClientError",
-    });
-  });
-
-  it("SSE parse split buffer across chunks yields meta->delta->done", async () => {
-    const chunk1 = 'event: meta\ndata: {"requestId":"q1","sessionId":"s1","userMessageId":"u1","assistantMessageId":"a1"}\n\n';
-    const chunk2 = 'event: delta\ndata: {"requestId":"q1","text":"Xin ';
-    const chunk3 = 'chào bạn"}\n\nevent: done\ndata: {"requestId":"q1","message":{"id":"a1","sessionId":"s1","role":"assistant","content":"Xin chào bạn","status":"completed","solve":null,"requestId":"q1","createdAt":"2026-10-01T00:00:00Z","updatedAt":"2026-10-01T00:00:00Z"}}\n\n';
-
-    let chunkIdx = 0;
-    const chunks = [
-      new TextEncoder().encode(chunk1),
-      new TextEncoder().encode(chunk2),
-      new TextEncoder().encode(chunk3),
-    ];
-
-    const mockStream = new ReadableStream({
-      async pull(controller) {
-        if (chunkIdx < chunks.length) {
-          controller.enqueue(chunks[chunkIdx]);
-          chunkIdx++;
-        } else {
-          controller.close();
-        }
-      },
-    });
-
-    const mockResponse = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: {
-        get: (h: string) => (h.toLowerCase() === "content-type" ? "text/event-stream" : null),
-      } as Headers,
-      body: mockStream,
-    };
-    globalThis.fetch = vi.fn().mockResolvedValue(mockResponse);
-
-    const events: unknown[] = [];
-    for await (const ev of client.streamChat("s1", {
-      requestId: "q1",
-      content: "hello",
-      mode: "ask",
-      followUpStep: null,
-    })) {
-      events.push(ev);
-    }
-
-    expect(events.length).toBeGreaterThanOrEqual(3);
-    expect((events[0] as { event: string }).event).toBe("meta");
-    const metaData = (events[0] as { data: { requestId: string; sessionId: string } }).data;
-    expect(metaData.requestId).toBe("q1");
-    expect(metaData.sessionId).toBe("s1");
-
-    expect((events[1] as { event: string }).event).toBe("delta");
-    const deltaData = (events[1] as { data: { text: string } }).data;
-    expect(deltaData.text).toBe("Xin chào bạn");
-
-    expect((events[2] as { event: string }).event).toBe("done");
-  });
+it.each([[401, "UNAUTHENTICATED"], [404, "NOT_FOUND"], [429, "RATE_LIMITED"]])("preserves typed HTTP error %i", async (status, code) => {
+  response({ error: { code, message: "Safe failure", requestId: "r1", retryable: status === 429 } }, status as number);
+  await expect(client.getProfile()).rejects.toMatchObject({ name: "ActicallyClientError", code, requestId: "r1" });
+});
+it("validates DTOs and sends cookie credentials", async () => {
+  response({ data: userProfile });
+  expect(await client.getProfile()).toEqual(userProfile);
+  expect(fetch).toHaveBeenCalledWith("/api/v1/profile", expect.objectContaining({ credentials: "include", method: "GET" }));
+});
+it.each([{ profile: userProfile }, { data: { id: "incomplete" } }, { data: userProfile, extra: true }])("rejects invalid success envelope %j", async value => {
+  response(value); await expect(client.getProfile()).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+});
+it("rejects plain text and malformed JSON success", async () => {
+  for (const [text, type] of [["OK", "text/plain"], ["{", "application/json"]]) {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(text, { headers: { "content-type": type } })));
+    await expect(client.getProfile()).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+  }
+});
+it("uses the frozen sources/cards/progress namespaces", async () => {
+  const spy = vi.fn().mockResolvedValueOnce(Response.json({ data: sources })).mockResolvedValueOnce(Response.json({ data: flashcards }))
+    .mockResolvedValueOnce(Response.json({ data: topicProgress })).mockResolvedValueOnce(Response.json({ data: null }));
+  vi.stubGlobal("fetch", spy);
+  await client.listSources("a/b"); await client.listCards({ limit: 100, offset: 0 }); await client.getProgress(); await client.deleteCard("c");
+  expect(spy.mock.calls.map(c => c[0])).toEqual(["/api/v1/study-sets/a%2Fb/sources", "/api/v1/cards?limit=100&offset=0", "/api/v1/progress", "/api/v1/cards/c"]);
+  expect(spy.mock.calls[3][1].method).toBe("DELETE");
+});
+it("decodes UTF8 split at every byte, CRLF and comments", async () => {
+  stream(": heartbeat\r\n\r\n" + meta + frame("delta", { requestId: input.requestId, text: "Xin chào" }) + done, true);
+  const result = await events();
+  expect(result.map(e => e.event)).toEqual(["meta", "delta", "done"]);
+  expect(result[1].data).toMatchObject({ text: "Xin chào" });
+});
+it.each([
+  meta, meta + 'event: delta\ndata: {\n\n', frame("delta", { requestId: input.requestId, text: "before meta" }),
+  meta + frame("delta", { requestId: "wrong", text: "x" }), meta + frame("done", { requestId: input.requestId, message: { ...message, id: "wrong" } }),
+  meta + frame("done", { requestId: input.requestId, message: { ...message, status: "failed" } }),
+])("rejects malformed, truncated or uncorrelated streams", async text => {
+  stream(text); await expect(events()).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+});
+it("maps typed SSE failure without converting partial output to done", async () => {
+  stream(meta + frame("delta", { requestId: input.requestId, text: "partial" }) + frame("error", { requestId: input.requestId, code: "AI_TIMEOUT", message: "Timeout", retryable: true }));
+  await expect(events()).rejects.toMatchObject({ code: "AI_TIMEOUT", requestId: input.requestId });
+});
+it("bounds unfinished frames and JSON byte size", async () => {
+  stream("event: delta\ndata: " + "x".repeat(1024 * 1024 + 1));
+  await expect(events()).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(" ".repeat(8 * 1024 * 1024 + 1), { headers: { "content-type": "application/json" } })));
+  await expect(client.getProfile()).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+});
+it("cancels a blocked reader on abort", async () => {
+  const cancel = vi.fn();
+  const body = new ReadableStream<Uint8Array>({ cancel });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { headers: { "content-type": "text/event-stream" } })));
+  const controller = new AbortController();
+  const result = events(controller.signal);
+  await Promise.resolve(); await Promise.resolve(); controller.abort();
+  await expect(result).rejects.toMatchObject({ name: "AbortError" });
+  expect(cancel).toHaveBeenCalledOnce();
+});
+it("cancels reader when consumer leaves early and immediately after terminal done", async () => {
+  for (const terminal of [false, true]) {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode(meta + (terminal ? done : ""))); }, cancel });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { headers: { "content-type": "text/event-stream" } })));
+    if (terminal) await events(); else for await (const event of client.streamChat("s1", input)) { expect(event.event).toBe("meta"); break; }
+    expect(cancel).toHaveBeenCalledOnce();
+  }
 });

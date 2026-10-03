@@ -1,10 +1,12 @@
+import { scheduler, RATINGS, toState, fromState, presentationIdOf, endOfLocalDay } from "@/lib/review-logic";
+export { toState, presentationIdOf, endOfLocalDay } from "@/lib/review-logic";
 import { and, asc, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
-import { createEmptyCard, fsrs, Rating, type Card, type Grade } from "ts-fsrs";
+import { createEmptyCard } from "ts-fsrs";
 import { aiFlashcardSchema } from "@/contracts/ai";
 import type { Flashcard, GradeResult, ReviewPresentation } from "@/contracts/dto";
 import type { CardGenerate, CardUpdate, GradeRequest } from "@/contracts/requests";
 import type { Db } from "@/db/client";
-import { cardGenerations, concepts, flashcards, reviewEvents, type FsrsState } from "@/db/schema";
+import { cardGenerations, concepts, flashcards, reviewEvents } from "@/db/schema";
 import type { ListParams } from "@/server/auth/route";
 import { withAi } from "./ai-quota";
 import { iso, nowOf, throwIfAborted, type Ctx } from "./context";
@@ -13,19 +15,12 @@ import { getConcept, sourceRevisionSnapshots, toConcept } from "./knowledge";
 import { userTimezone } from "./profile";
 import { groundedRefs } from "./sessions";
 
-const scheduler = fsrs(); // default parameters, fuzz off => deterministic
 const CLAIM_STALE_MS = 2 * 60_000; // AI ops time out at 60 s; an older "running" claim belongs to a crashed request
-const RATINGS: Record<GradeRequest["rating"], Grade> = { again: Rating.Again, hard: Rating.Hard, good: Rating.Good, easy: Rating.Easy };
-
-export const toState = (c: Card): FsrsState => ({ due: iso(c.due), stability: c.stability, difficulty: c.difficulty, elapsed_days: c.elapsed_days,
-  scheduled_days: c.scheduled_days, learning_steps: c.learning_steps, reps: c.reps, lapses: c.lapses, state: c.state, last_review: c.last_review ? iso(c.last_review) : null });
-const fromState = (s: FsrsState): Card => ({ ...s, due: new Date(s.due), last_review: s.last_review ? new Date(s.last_review) : undefined });
 
 type CardRow = typeof flashcards.$inferSelect;
 const toCard = (r: CardRow): Flashcard => ({ id: r.id, conceptId: r.conceptId, studySetId: r.studySetId, front: r.front, back: r.back, sourceRefs: r.sourceRefs,
   revision: r.revision, scheduler: r.scheduler, createdAt: iso(r.createdAt), updatedAt: iso(r.updatedAt) });
 /** Server-issued, bound to card + revision; ownership is checked on the card itself. Grading bumps the revision, so it is single-use. */
-export const presentationIdOf = (cardId: string, revision: number) => `${cardId}.${revision}`;
 
 async function getCardRow(db: Db, userId: string, id: string) {
   const [row] = await db.select().from(flashcards).where(and(eq(flashcards.id, id), eq(flashcards.userId, userId), isNull(flashcards.deletedAt)));
@@ -116,21 +111,6 @@ export async function generateCard(ctx: Ctx, input: CardGenerate) {
 }
 
 // ---------- time zones ----------
-function zonedParts(d: Date, timeZone: string) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
-    .formatToParts(d).map(x => [x.type, Number(x.value)]));
-  return p as Record<"year" | "month" | "day" | "hour" | "minute" | "second", number>;
-}
-const offsetMs = (d: Date, tz: string) => { const p = zonedParts(d, tz); return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - Math.floor(d.getTime() / 1000) * 1000; };
-/** First instant of the next local calendar day in `timeZone` (UTC Date). DST-safe via a second offset probe. */
-export function endOfLocalDay(now: Date, timeZone: string) {
-  const p = zonedParts(now, timeZone);
-  const wall = Date.UTC(p.year, p.month - 1, p.day + 1);
-  let t = wall - offsetMs(new Date(wall), timeZone);
-  t = wall - offsetMs(new Date(t), timeZone);
-  return new Date(t);
-}
-
 /** Cards due before the end of the learner's local day (profile timezone). Computed on read; no cron. */
 export async function dueQueue(ctx: Ctx, q: ListParams): Promise<ReviewPresentation[]> {
   const cutoff = endOfLocalDay(nowOf(ctx), await userTimezone(ctx.db, ctx.userId));

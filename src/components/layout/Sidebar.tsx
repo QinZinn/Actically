@@ -11,12 +11,13 @@ import {
   TrendingUp,
   Settings,
   Plus,
-  UserCircle2,
   LogOut,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import type { LearningSession, UserProfile } from '@/contracts/dto';
+import { signOut } from '@/lib/client/auth';
+import { toast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -30,12 +31,12 @@ import RecentSessionItem from './RecentSessionItem';
 import { cn } from '@/lib/client/utils';
 
 interface SidebarProps {
+  profile?: UserProfile | null;
+  recentSessions?: LearningSession[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
-  userProfile?: Partial<UserProfile>;
-  recentSessions?: LearningSession[];
   selectedSessionId?: string;
-  onNewSession: () => void;
+  onNewSession?: () => void;
   onNav?: (route: string) => void;
 }
 
@@ -47,21 +48,31 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/sessions', icon: BrainCircuit, label: 'Học với AI' },
+  { href: '/', icon: BrainCircuit, label: 'Học với AI' },
   { href: '/practice', icon: FilePenLine, label: 'Tự kiểm tra' },
   { href: '/review', icon: LayoutGrid, label: 'Ôn tập' },
   { href: '/knowledge', icon: Library, label: 'Kho kiến thức' },
   { href: '/progress', icon: TrendingUp, label: 'Tiến độ' },
 ];
 
+function getInitials(name: string): string {
+  const cleaned = (name ?? '').trim();
+  if (!cleaned) return 'U';
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export default function Sidebar({
   collapsed,
   onToggleCollapsed,
-  userProfile,
-  recentSessions = [],
   selectedSessionId,
   onNewSession,
   onNav,
+  profile,
+  recentSessions = [],
 }: SidebarProps) {
   const router = useRouter();
 
@@ -70,6 +81,28 @@ export default function Sidebar({
       onNav(route);
     }
   };
+
+  const handleNewSessionClick = () => {
+    if (onNewSession) {
+      onNewSession();
+    } else {
+      router.push('/');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.replace('/login');
+      router.refresh();
+    } catch (error) {
+      toast({ variant: 'error', title: 'Đăng xuất thất bại', description: error instanceof Error ? error.message : 'Vui lòng thử lại.' });
+    }
+  };
+
+  const displayName = profile?.displayName ?? 'Người dùng';
+  const email = profile?.email ?? '(chưa đăng nhập)';
+  const initials = getInitials(profile?.displayName ?? 'U');
 
   return (
     <aside
@@ -105,10 +138,11 @@ export default function Sidebar({
           className={cn(
             'absolute top-1/2 -translate-y-1/2 z-10 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-popover transition-colors',
             collapsed
-              ? 'opacity-0 hover:opacity-100 right-0 -translate-x-0'
+              ? 'right-0 focus-visible:ring-2 focus-visible:ring-primary'
               : 'right-2'
           )}
           aria-label={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
+          aria-expanded={!collapsed}
         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" />
@@ -119,20 +153,21 @@ export default function Sidebar({
       </div>
 
       <div className={cn('px-2 shrink-0', collapsed && 'px-1')}>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onNewSession}
-          className={cn(
-            'w-full gap-2 text-foreground font-medium',
-            collapsed
-              ? 'justify-center px-0 h-9'
-              : 'justify-start px-2 mt-1'
-          )}
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          {!collapsed && <span>Phiên mới</span>}
-        </Button>
+          <Button
+            onClick={handleNewSessionClick}
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'w-full gap-2 text-foreground font-medium',
+              collapsed
+                ? 'justify-center px-0 h-9'
+                : 'justify-start px-2 mt-1'
+            )}
+            aria-label="Phiên mới"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>Phiên mới</span>}
+          </Button>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-2 space-y-1 min-h-0">
@@ -148,20 +183,27 @@ export default function Sidebar({
           />
         ))}
 
-        {!collapsed && recentSessions.length > 0 && (
+        {!collapsed && (
           <>
             <p className="text-muted-foreground uppercase text-xs tracking-wide px-2 mt-6 mb-2 font-semibold">
               Gần đây
             </p>
-            <div className="space-y-0.5">
-              {recentSessions.slice(0, 8).map((session) => (
-                <RecentSessionItem
-                  key={session.id}
-                  session={session}
-                  selected={session.id === selectedSessionId}
-                />
-              ))}
-            </div>
+            {recentSessions.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-2">
+                Chưa có phiên nào gần đây
+              </p>
+            ) : (
+              <div className="space-y-0.5">
+                {recentSessions.slice(0, 5).map((session) => (
+                  <RecentSessionItem
+                    key={session.id}
+                    session={session}
+                    selected={session.id === selectedSessionId}
+                    onClick={() => handleNavClick(`/sessions/${session.id}`)}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
       </nav>
@@ -186,24 +228,29 @@ export default function Sidebar({
                 collapsed && 'justify-center px-0'
               )}
             >
-              <UserCircle2 className="w-[18px] h-[18px] shrink-0" />
+              <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold shrink-0 text-sm">
+                {initials}
+              </div>
               {!collapsed && (
-                <span className="truncate flex-1 text-left">
-                  {userProfile?.displayName || 'Người dùng'}
+                <span className="truncate flex-1 text-left flex flex-col min-w-0">
+                  <span className="truncate text-foreground text-sm font-medium">
+                    {displayName}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground font-normal">
+                    {email}
+                  </span>
                 </span>
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" className="w-48">
+          <DropdownMenuContent side="right" className="w-56">
             <div className="px-2 py-1.5">
               <p className="text-sm font-medium text-foreground truncate">
-                {userProfile?.displayName || 'Người dùng'}
+                {displayName}
               </p>
-              {userProfile?.email && (
-                <p className="text-xs text-muted-foreground truncate">
-                  {userProfile.email}
-                </p>
-              )}
+              <p className="text-xs text-muted-foreground truncate">
+                {email}
+              </p>
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -216,11 +263,19 @@ export default function Sidebar({
               <Settings className="w-4 h-4 mr-2" />
               Cài đặt
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
-                router.push('/login');
+                router.push('/progress');
+                handleNavClick('/progress');
               }}
+              className="cursor-pointer"
+            >
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Tiến độ
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={handleLogout}
               className="cursor-pointer text-destructive focus:text-destructive"
             >
               <LogOut className="w-4 h-4 mr-2" />

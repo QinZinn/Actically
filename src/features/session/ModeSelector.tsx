@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/client/utils";
 
 interface ModeSelectorProps {
+  disabled?: boolean;
   value: StudyMode;
   onChange: (mode: StudyMode) => void;
 }
@@ -21,7 +22,7 @@ const modes: {
   { value: "ask", label: "Hỏi nhanh", icon: <Zap className="w-3.5 h-3.5" /> },
 ];
 
-export default function ModeSelector({ value, onChange }: ModeSelectorProps) {
+export default function ModeSelector({ value, onChange, disabled }: ModeSelectorProps) {
   return (
     <div className="flex items-center gap-1">
       {modes.map((m) => {
@@ -30,6 +31,8 @@ export default function ModeSelector({ value, onChange }: ModeSelectorProps) {
           <Button
             key={m.value}
             type="button"
+            disabled={disabled}
+            aria-pressed={selected}
             variant="ghost"
             size="xs"
             onClick={() => onChange(m.value)}

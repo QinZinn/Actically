@@ -59,7 +59,7 @@ describe("Focus/keyboard state classes", () => {
   });
 
   it("ModeSelector renders 3 focusable button chips (socratic/solve/ask)", () => {
-    const onChange = (_m: "socratic" | "solve" | "ask") => {};
+    const onChange = () => {};
     const el = React.createElement(ModeSelector, {
       value: "solve",
       onChange,

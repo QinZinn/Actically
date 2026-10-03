@@ -30,19 +30,10 @@ describe("GradeButtons component", () => {
     expect(html).toContain("Dễ");
   });
 
-  it("onGrade callback accepts ReviewRating union directly", () => {
-    const ratings: ("again" | "hard" | "good" | "easy")[] = [];
-    const onGrade = vi.fn((r: "again" | "hard" | "good" | "easy") => {
-      ratings.push(r);
-    });
-    onGrade("again");
-    onGrade("hard");
-    onGrade("good");
-    onGrade("easy");
-    expect(onGrade).toHaveBeenCalledTimes(4);
-    expect(ratings).toEqual(["again", "hard", "good", "easy"]);
+  it("does not promise fabricated FSRS intervals before grading", () => {
+    const html = renderToString(React.createElement(GradeButtons, { onGrade: vi.fn() }));
+    expect(html).not.toContain("1 ngày"); expect(html).not.toContain("4 ngày"); expect(html).not.toContain("10 phút");
   });
-
   it("component renders without errors when disabled=false", () => {
     const onGrade = vi.fn();
     const el = React.createElement(GradeButtons, {

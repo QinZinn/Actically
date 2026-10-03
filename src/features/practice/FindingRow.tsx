@@ -28,21 +28,6 @@ const kindConfig: Record<
   incorrect: { label: "Sai", variant: "incorrect", Icon: XCircle },
 };
 
-function renderQuote(text: string, start: number | null, end: number | null) {
-  if (start === null || end === null || start < 0 || end > text.length || start >= end) {
-    return <span>{text}</span>;
-  }
-  return (
-    <>
-      {text.slice(0, start)}
-      <mark className="bg-warn/20 rounded px-0.5 text-foreground">
-        {text.slice(start, end)}
-      </mark>
-      {text.slice(end)}
-    </>
-  );
-}
-
 export default function FindingRow({ finding, kind = "observation" }: FindingRowProps) {
   const cfg = kindConfig[kind];
   const Icon = cfg.Icon;
@@ -64,11 +49,7 @@ export default function FindingRow({ finding, kind = "observation" }: FindingRow
           <span className="not-italic font-medium text-muted-foreground mr-1">
             Bạn viết:
           </span>
-          {renderQuote(
-            finding.learnerQuote.text,
-            finding.learnerQuote.start,
-            finding.learnerQuote.end
-          )}
+          <mark className="bg-warn/20 rounded px-0.5">{finding.learnerQuote.text}</mark>
         </blockquote>
       )}
 

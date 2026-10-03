@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { EyeOff, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,7 @@ const MAX_CHARS = 16000;
 const MIN_CHARS = 20;
 
 interface BlurtingWriterProps {
+  value?: string;
   selectedCount: number;
   onSubmit: (text: string, key: string) => void;
   draftId: string;
@@ -21,22 +22,12 @@ export default function BlurtingWriter({
   selectedCount,
   onSubmit,
   draftId,
+  value,
   onDraftChange,
 }: BlurtingWriterProps) {
-  const storageKey = `practice-blurting-draft-${draftId}`;
-  const [text, setText] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return window.localStorage.getItem(storageKey) ?? "";
-    }
-    return "";
-  });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey, text);
-    }
-    onDraftChange(text);
-  }, [text, storageKey, onDraftChange]);
+  void draftId;
+  const [localText, setText] = useState("");
+  const text = value ?? localText;
 
   const canSubmit = selectedCount > 0 && text.length >= MIN_CHARS && text.length <= MAX_CHARS;
   const charCount = text.length;
@@ -73,7 +64,8 @@ export default function BlurtingWriter({
       <div className="flex-1 flex flex-col min-h-0">
         <Textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          aria-label="Bài viết lại Blurting"
+          onChange={(e) => { setText(e.target.value); onDraftChange(e.target.value); }}
           placeholder="Viết ra mọi thứ bạn nhớ về các khái niệm đã chọn. Không cần theo trình tự, hãy liệt kê tất cả các điểm bạn nhớ được…"
           className={cn(
             "flex-1 min-h-[300px] w-full p-4 text-sm leading-6",

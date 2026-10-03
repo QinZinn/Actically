@@ -41,17 +41,21 @@ export default function SourceInputPaste({
   const [newSubject, setNewSubject] = React.useState("Chung");
   const [newTitle, setNewTitle] = React.useState("");
   const [pendingSource, setPendingSource] = React.useState<SourceCreate | null>(null);
+  const createdSetRef = React.useRef<StudySet | null>(null);
 
   const contentLength = content.length;
 
   const createStudySetAndSource = async (srcData: SourceCreate) => {
     try {
-      const studySet = await client.createStudySet({
+      const studySet = createdSetRef.current ?? await client.createStudySet({
         subject: newSubject || "Chung",
         title: newTitle,
         description: "",
       });
-      onStudySetCreated?.(studySet);
+      if (!createdSetRef.current) {
+        createdSetRef.current = studySet;
+        onStudySetCreated?.(studySet);
+      }
       const source = await client.createSource(studySet.id, srcData);
       onSourceCreated?.(source);
       toast({
@@ -59,6 +63,7 @@ export default function SourceInputPaste({
         description: `Bộ học "${studySet.title}" và nguồn "${source.title}" đã được tạo.`,
         variant: "success",
       });
+      return true;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast({
@@ -66,6 +71,7 @@ export default function SourceInputPaste({
         description: message ?? "Có lỗi xảy ra.",
         variant: "error",
       });
+      return false;
     }
   };
 
@@ -92,6 +98,7 @@ export default function SourceInputPaste({
     try {
       if (!studySetId) {
         setPendingSource(srcData);
+        createdSetRef.current = null;
         setNewTitle(title.trim());
         setDialogOpen(true);
         return;
@@ -121,9 +128,11 @@ export default function SourceInputPaste({
     if (!newTitle.trim()) return;
     setSaving(true);
     if (pendingSource) {
-      await createStudySetAndSource(pendingSource);
+      const success = await createStudySetAndSource(pendingSource);
+      if (!success) { setSaving(false); return; }
     }
     setPendingSource(null);
+    createdSetRef.current = null;
     setDialogOpen(false);
     setNewSubject("Chung");
     setNewTitle("");

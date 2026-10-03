@@ -10,6 +10,7 @@ import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ErrorState } from "@/components/ui/error-state";
 import { getClient } from "@/lib/client";
 import type { UserProfile } from "@/contracts/dto";
 import type { ProfileUpdate } from "@/contracts/requests";
@@ -70,6 +71,8 @@ function SettingsSkeleton() {
 
 function SettingsInner() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const client = getClient();
 
   useEffect(() => {
@@ -77,28 +80,26 @@ function SettingsInner() {
     (async () => {
       const p = await client.getProfile();
       if (mounted) setProfile(p);
-    })();
+    })().catch(e => { if (mounted) setError(e.message); });
     return () => { mounted = false; };
-  }, [client]);
+  }, [client, retry]);
 
   async function handleSaveProfile(input: ProfileUpdate): Promise<UserProfile> {
     const next = await client.updateProfile(input);
     setProfile(next);
+    window.dispatchEvent(new Event("actically:profile-changed"));
     return next;
   }
 
   async function handleSaveTz(tz: string): Promise<UserProfile> {
-    const next = await client.updateProfile({ timezone: tz });
-    setProfile(next);
-    return next;
+    return handleSaveProfile({ timezone: tz });
   }
 
   async function handleSidebarChange(collapsed: boolean): Promise<UserProfile> {
-    const next = await client.updateProfile({ sidebarCollapsed: collapsed });
-    setProfile(next);
-    return next;
+    return handleSaveProfile({ sidebarCollapsed: collapsed });
   }
 
+  if (error && !profile) return <ErrorState title="Không tải được hồ sơ" body={error} onRetry={() => setRetry(v => v + 1)} />;
   if (!profile) return <SettingsSkeleton />;
 
   return (

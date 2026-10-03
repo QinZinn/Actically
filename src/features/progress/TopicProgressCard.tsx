@@ -2,6 +2,7 @@
 
 import { AlertTriangle, TrendingUp, CheckCircle2, CircleDashed, LayoutGrid, FilePenLine } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import type { TopicProgress } from "@/contracts/dto";
 import AttemptObservationRow, { relativeDateVietnamese } from "./AttemptObservationRow";
@@ -103,9 +104,7 @@ export default function TopicProgressCard({ topic }: TopicProgressCardProps) {
                     <span className="text-muted-foreground">
                       {relativeDateVietnamese(ev.reviewedAt)}
                     </span>
-                    <span className="text-muted-foreground/70 font-mono text-[11px] ml-auto">
-                      {ev.cardId.slice(0, 8)}
-                    </span>
+                    <Link href={`/review?eventId=${encodeURIComponent(ev.id)}`} className="text-primary underline ml-auto">Xem lượt ôn</Link>
                   </li>
                 ))
               )}

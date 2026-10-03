@@ -116,7 +116,6 @@ export function ToastProvider({ children }: ToastProviderProps) {
   return (
     <>
       {children}
-      <Toaster />
     </>
   );
 }

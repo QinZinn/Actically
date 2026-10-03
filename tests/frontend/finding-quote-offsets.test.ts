@@ -9,14 +9,14 @@ describe("FindingRow Vietnamese learnerQuote offsets", () => {
     "Hàm số bậc hai là một đa thức mà biến số có lũy thừa lớn nhất là 2. Ví dụ y = ax² + bx + c với a khác 0.";
 
   it("renders blockquote containing learnerQuote substring 'là một đa thức'", () => {
-    const start = 42;
-    const end = 78;
+    const start = learnerText.indexOf("là một đa thức");
+    const end = start + "là một đa thức".length;
     const substring = learnerText.slice(start, end);
 
     const finding: Finding = {
       text: "Kết quả đúng",
       learnerQuote: {
-        text: learnerText,
+        text: substring,
         start,
         end,
       },

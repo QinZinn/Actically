@@ -44,12 +44,12 @@ export default function Flashcard({ card, revealed, onReveal }: FlashcardProps) 
             <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
               <span className="text-xs text-muted-foreground mr-1">Nguồn:</span>
               {card.sourceRefs.map((sr, idx) => (
-                <Badge key={idx} variant="secondary" size="sm" className="gap-1">
+                <details key={idx} className="w-full text-xs"><summary className="cursor-pointer"><Badge variant="secondary" size="sm" className="gap-1">
                   <BookOpen className="h-3 w-3" />
                   <span className="truncate max-w-[140px]">
-                    Nguồn #{sr.sourceId.slice(0, 6)}
+                    Nguồn #{sr.sourceId.slice(0, 6)} · r{sr.revision}
                   </span>
-                </Badge>
+                </Badge></summary><blockquote className="text-left border-l-2 border-border p-2 whitespace-pre-wrap">{sr.excerpt}</blockquote></details>
               ))}
             </div>
           )}

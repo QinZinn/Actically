@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import type { ActicallyClient } from "@/contracts/client";
-import { createActicallyClient } from "@/lib/client";
+import { getClient } from "@/lib/client";
 
-const singletonClient = createActicallyClient();
+const singletonClient = getClient();
 
 interface ActicallyClientContextValue {
   value: ActicallyClient;
