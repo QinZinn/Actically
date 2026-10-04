@@ -2,7 +2,7 @@
 
 Vietnamese learning workspace. One Next.js App Router application, Supabase Auth/PostgreSQL, Drizzle, FSRS review and server-side NVIDIA Nemotron on Nebius Token Factory. Original product instructions live in `docs/actically-parallel-kit/`; `Actically Mockups.html` is the preserved visual reference.
 
-The backend and AI are integrated, and Codex completed the remaining frontend after the owner authorized takeover following Trae's usage limit. Local typecheck, lint and production build pass; 117 tests pass and two opt-in live tests are skipped. Browser interaction/layout checks and real Supabase/Nebius checks remain unverified. See [integration handoff](docs/handoffs/integration.md), root Board.md, [ownership](docs/OWNERSHIP.md), [API contracts](docs/API-CONTRACT.md) and [AI integration](docs/AI-INTEGRATION.md). Missing provider credentials produce an explicit unavailable response.
+The backend and AI are integrated, and Codex completed the remaining frontend after the owner authorized takeover following Trae's usage limit. The subsequent [UI refresh](docs/handoffs/ui-refresh.md) fixes global spacing, navigation, responsive layouts, icons and chat rendering. Local typecheck, lint and production build pass; 120 tests pass and two opt-in live tests are skipped. Browser interaction/layout checks and real Supabase/Nebius checks remain unverified. See [integration handoff](docs/handoffs/integration.md), root Board.md, [ownership](docs/OWNERSHIP.md), [API contracts](docs/API-CONTRACT.md) and [AI integration](docs/AI-INTEGRATION.md). Missing provider credentials produce an explicit unavailable response.
 
 ## Local setup
 
