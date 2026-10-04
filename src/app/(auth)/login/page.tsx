@@ -91,7 +91,7 @@ function LoginPageInner() {
         <Card>
           <CardContent className="p-6 sm:p-8">
             <div className="flex flex-col items-center mb-8">
-              <ActicallyMark className="size-10 text-primary mb-5" />
+              <ActicallyMark className="size-14 rounded-xl mb-5" />
               <h1 className="text-2xl font-semibold tracking-tight text-center">
                 {signup ? "Tạo tài khoản Actically" : "Chào mừng đến Actically"}
               </h1>

@@ -102,11 +102,12 @@ export default function Sidebar({
       )}>
         <Link
           href="/"
+          aria-label="Actically — Trang chủ"
           className="flex min-w-0 items-center gap-2.5 rounded-md text-foreground"
           onClick={() => handleNavClick('/')}
         >
           <div className="size-8 flex items-center justify-center shrink-0">
-            <ActicallyMark className="size-7 text-primary" />
+            <ActicallyMark className="size-8 rounded-lg" />
           </div>
           {!collapsed && (
             <span

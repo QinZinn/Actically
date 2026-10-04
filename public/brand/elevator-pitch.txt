@@ -1,0 +1,1 @@
+Actically turns AI answers into lasting understanding through guided questions, self-explanation, and spaced repetition. Powered by NVIDIA Nemotron.
