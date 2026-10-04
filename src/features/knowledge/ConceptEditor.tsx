@@ -174,6 +174,7 @@ export default function ConceptEditor({
           <div className="flex flex-col gap-1.5">
             <Label>Tiêu đề (tối đa 200 ký tự)</Label>
             <Input
+              aria-label="Tiêu đề khái niệm"
               value={title}
               onChange={(e) => setTitle(e.target.value.slice(0, 200))}
               placeholder="Ví dụ: Định luật Newton thứ nhất"
@@ -184,6 +185,7 @@ export default function ConceptEditor({
           <div className="flex flex-col gap-1.5">
             <Label>Nội dung (tối đa 8000 ký tự)</Label>
             <Textarea
+              aria-label="Nội dung khái niệm"
               value={body}
               onChange={(e) => setBody(e.target.value.slice(0, 8000))}
               placeholder="Viết giải thích chi tiết, markdown hỗ trợ (định nghĩa, ví dụ, công thức…)"
@@ -216,8 +218,10 @@ export default function ConceptEditor({
                     key={r.id}
                     className="p-3 border border-border rounded-lg bg-card flex flex-col gap-2"
                   >
-                    <div className="grid grid-cols-[1fr_140px_auto] gap-2 items-center">
+                    <div className="grid grid-cols-[minmax(0,1fr)_40px] gap-2 items-center sm:grid-cols-[minmax(0,1fr)_96px_40px]">
                       <Select
+                        aria-label="Nguồn tham chiếu"
+                        className="col-span-2 sm:col-span-1"
                         value={r.sourceId}
                         onChange={(e) => {
                           const sid = e.target.value;
@@ -236,6 +240,7 @@ export default function ConceptEditor({
                         ))}
                       </Select>
                       <Input
+                        aria-label="Phiên bản nguồn"
                         type="number"
                         min={1}
                         value={r.revision}
@@ -246,6 +251,7 @@ export default function ConceptEditor({
                         }
                       />
                       <Button
+                        aria-label="Xóa nguồn tham chiếu"
                         size="icon"
                         variant="ghost"
                         onClick={() => removeRef(r.id)}
@@ -255,6 +261,7 @@ export default function ConceptEditor({
                       </Button>
                     </div>
                     <Textarea
+                      aria-label="Trích đoạn tham chiếu"
                       value={r.excerpt}
                       onChange={(e) =>
                         updateRef(r.id, { excerpt: e.target.value.slice(0, 4000) })

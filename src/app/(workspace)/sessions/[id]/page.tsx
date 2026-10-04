@@ -51,15 +51,15 @@ function SessionBody({ sessionId }: { sessionId: string }) {
       {sources.length ? sources.map(s => <details key={s.id} className="py-2"><summary className="cursor-pointer">{s.title} · r{s.revision}</summary><MarkdownRenderer>{s.content}</MarkdownRenderer></details>) : <p className="text-sm text-muted-foreground">Phiên chưa có nguồn tham khảo.</p>}
     </section>
   </div>;
-  return <AppLayout contextPanel={context}>
-    <div className="flex flex-col h-full min-h-[70dvh]">
+  return <AppLayout contextPanel={context} conversation>
+    <div className="flex flex-1 min-h-0 flex-col">
       {!state.session ? state.error ? <ErrorState title="Không thể tải phiên học" body={state.error} onRetry={state.reload} /> : <p role="status">Đang tải phiên học…</p> : <>
         <SessionHeader session={state.session} busy={state.sending || state.ending || updating}
           onRename={title => update({ title })}
           onDelete={async () => { try { await client.deleteSession(sessionId); router.push("/"); } catch (e) { toast({ variant: "error", title: "Không xóa được phiên", description: e instanceof Error ? e.message : undefined }); } }}
           onEndExtractConcepts={() => updateLock.current ? Promise.resolve(undefined) : state.finishSession()} />
         {state.error && <p role="alert" className="text-error p-2">{state.error}</p>}
-        <div className="flex-1 min-h-[240px]"><MessageList messages={state.messages} actionsDisabled={updating || state.sending || state.ending || state.session.status === "ended"}
+        <div className="flex min-h-0 flex-1 flex-col"><MessageList messages={state.messages} actionsDisabled={updating || state.sending || state.ending || state.session.status === "ended"}
           onRetry={m => { if (!updateLock.current) void state.handleRetry(m); }}
           onAnswer={(m, a) => updateLock.current ? Promise.resolve(false) : state.sendMessage("ask", `Với câu kiểm tra hiểu: ${m.solve?.comprehensionCheck ?? ""}\nCâu trả lời của tôi: ${a}`)}
           onFollowUpSolveStep={(_m, step) => { if (!updateLock.current) void state.sendMessage("ask", `Xin giải thích rõ hơn bước ${step}`, step); }} /></div>

@@ -62,14 +62,14 @@ export default function ProfileSection({ profile, onSave }: ProfileSectionProps)
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSave} className="flex flex-col gap-5">
-          <div className="flex gap-5 items-start">
+          <div className="flex flex-col gap-5 items-start sm:flex-row">
             <div
               className="w-16 h-16 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold shrink-0 select-none"
               aria-hidden
             >
               {getInitials(displayName)}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-4 flex-1 lg:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="display-name">Tên hiển thị</Label>
                 <Input

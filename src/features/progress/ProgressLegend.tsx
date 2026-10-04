@@ -20,7 +20,7 @@ export default function ProgressLegend() {
       variant: "growing" as const,
       label: "Đang tiến bộ",
       icon: TrendingUp,
-      tooltip: "Có bằng chứng ôn tập, nhưng chưa đủ điều kiện Vững / Có thẻ yếu trong chủ đề",
+      tooltip: "Có bằng chứng ôn tập, không có thẻ cần củng cố và chưa đủ điều kiện Vững",
     },
     {
       variant: "solid" as const,
@@ -43,7 +43,7 @@ export default function ProgressLegend() {
         return (
           <Tooltip key={it.variant}>
             <TooltipTrigger asChild>
-              <Badge variant={it.variant} size="sm" className="cursor-help">
+              <Badge variant={it.variant} size="sm" tabIndex={0} className="cursor-help">
                 <Icon className="w-3 h-3" />
                 {it.label}
               </Badge>

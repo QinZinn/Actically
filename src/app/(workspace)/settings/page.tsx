@@ -3,11 +3,9 @@
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
-import { Button } from "@/components/ui/button";
+import PageHeader from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
@@ -104,14 +102,7 @@ function SettingsInner() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild aria-label="Quay lại">
-          <Link href="/">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Cài đặt</h1>
-      </div>
+      <PageHeader eyebrow="Không gian của bạn" title="Cài đặt" description="Quản lý hồ sơ, múi giờ và tùy chọn hiển thị của Actically." />
 
       <ProfileSection profile={profile} onSave={handleSaveProfile} />
 

@@ -21,7 +21,7 @@ export default function Flashcard({ card, revealed, onReveal }: FlashcardProps) 
         className={cn(
           "rounded-xl border p-8 min-h-[220px] flex items-center justify-center text-center transition-colors",
           !revealed && "cursor-pointer hover:border-primary/60",
-          "bg-[var(--elevated-bg)] border-border"
+          "bg-popover border-border"
         )}
       >
         <div className="max-w-3xl w-full text-lg leading-8">

@@ -92,17 +92,17 @@ export default function SessionComposer({
   };
 
   return (
-    <div className="sticky bottom-0 z-10 bg-background/90 backdrop-blur border-t border-border p-4">
-      <div className="max-w-4xl mx-auto space-y-3">
+    <div className="shrink-0 max-h-[55dvh] overflow-y-auto border-t border-border bg-background p-3 sm:p-4">
+      <div className="max-w-[832px] mx-auto space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ModeSelector value={mode} onChange={onModeChange} disabled={sending || disabled} />
-          <div className="flex items-center gap-2">
+          <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:max-w-[360px]">
             <Select
               aria-label="Bộ học của phiên"
               disabled={sending || disabled}
               value={studySetId ?? ""}
               onChange={(e) => onStudySetChange(e.target.value || null)}
-              className="w-auto min-w-[200px]"
+              className="min-w-0 flex-1 sm:w-[200px]"
             >
               <option value="">— Không chọn bộ —</option>
               {studySets.map((s) => (
@@ -119,7 +119,7 @@ export default function SessionComposer({
                 disabled={sending || disabled}
                 className="gap-1"
               >
-                Nguồn (dán)
+                Nguồn
                 {sourcePasteOpen ? (
                   <ChevronUp className="w-4 h-4" />
                 ) : (
@@ -142,7 +142,8 @@ export default function SessionComposer({
           <Textarea
             ref={textareaRef}
             rows={2}
-            placeholder="Nhập câu hỏi của bạn… Ctrl+Enter gửi"
+            placeholder="Bạn đang muốn hiểu điều gì?"
+            aria-label="Nội dung tin nhắn"
             value={content}
             onChange={(e) => {
               setContent(e.target.value);
@@ -151,7 +152,7 @@ export default function SessionComposer({
             onKeyDown={handleKeyDown}
             disabled={sending || disabled}
             maxLength={MAX_CHARS}
-            className="pr-24 resize-none"
+            className="min-h-[76px] max-h-[200px] pr-20 resize-none bg-card leading-6"
           />
           <div className="absolute right-2 bottom-2 flex items-center gap-2">
             {sending ? (
@@ -171,7 +172,8 @@ export default function SessionComposer({
             )}
           </div>
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-between gap-3 text-xs text-muted-foreground">
+          <span>Ctrl + Enter để gửi</span>
           <span className="text-xs text-muted-foreground">
             {content.length}/{MAX_CHARS}
           </span>

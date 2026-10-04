@@ -78,9 +78,9 @@ export default function ConceptCard({
         }}
         className="h-full outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
       >
-        <Card className="flex flex-col p-4 gap-3 hover:shadow-lg transition-shadow h-full">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-semibold text-foreground line-clamp-2 flex-1">
+        <Card className="flex flex-col p-5 gap-4 transition-colors hover:border-border h-full">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 className="min-w-0 basis-[140px] font-semibold leading-6 text-foreground line-clamp-2 flex-1">
             {concept.title}
           </h3>
           <Badge variant={cfg.variant} size="sm" className="gap-1 shrink-0">
@@ -104,7 +104,7 @@ export default function ConceptCard({
         </div>
 
         <div
-          className="flex items-center gap-2 pt-2 border-t border-border/60 flex-wrap"
+          className="mt-auto flex items-center gap-2 pt-3 border-t border-border/60 flex-wrap"
           onClick={(e) => e.stopPropagation()}
         >
           {showOwnerActions && onApprove && (
@@ -144,7 +144,7 @@ export default function ConceptCard({
             <div className="ml-auto">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost" className="h-8 w-8">
+                  <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Tùy chọn khái niệm">
                     <MoreHorizontal className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>

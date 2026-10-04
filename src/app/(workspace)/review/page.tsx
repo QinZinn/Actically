@@ -2,6 +2,8 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AppLayout from "@/components/layout/AppLayout";
+import PageHeader from "@/components/layout/PageHeader";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/error-state";
@@ -65,15 +67,12 @@ function ReviewInner() {
   useEffect(() => {
     if (selectedEvent && progress.some(p => p.reviewEvidence.some(e => e.id === selectedEvent))) document.getElementById("review-event-" + selectedEvent)?.scrollIntoView({ block: "center" });
   }, [selectedEvent, progress]); // show the persisted evidence reached from Progress
-  return <AppLayout><div className="max-w-5xl mx-auto space-y-6">
-    <div className="flex justify-between items-center flex-wrap gap-3">
-      <div><h1 className="text-2xl font-bold">Ôn tập</h1><p className="text-sm text-muted-foreground">Thẻ đến hạn theo múi giờ {timezone}. FSRS lên lịch sau khi bạn chấm.</p></div>
-      <Button variant="secondary" disabled={loading || grading || !!gradeError} onClick={load}>Làm mới</Button>
-    </div>
+  return <AppLayout><div className="space-y-6">
+    <PageHeader eyebrow="Nhớ lâu, từng chút một" title="Ôn tập" description="Thử nhớ trước khi xem đáp án. Lần ôn tiếp theo sẽ được sắp xếp theo mức độ bạn nhớ." actions={<Button variant="secondary" disabled={loading || grading || !!gradeError} onClick={load}><RefreshCw className="size-4" />Làm mới</Button>} />
     {error && <ErrorState title="Cần tải lại dữ liệu" body={error} onRetry={load} />}
     {selectedEvent && !loading && !events.some(e => e.id === selectedEvent) && <p role="status">Bằng chứng này không còn trong cửa sổ tiến độ gần nhất.</p>}
     {completed > 0 && <Card className="p-4">Đã lưu {completed} lượt ôn trong phiên này.</Card>}
-    <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+    <div className="review-split">
       <section className="space-y-4 min-w-0">
         {loading ? <p role="status">Đang tải hàng đợi…</p> : running && queue.length ?
           <Card className="p-5"><Button variant="ghost" disabled={grading || !!gradeError} onClick={() => setRunning(false)}>Dừng phiên</Button>

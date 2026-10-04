@@ -55,7 +55,7 @@ describe("SolveSteps component", () => {
     });
     const rawHtml = renderToString(el);
     const html = stripHtmlComments(rawHtml);
-    expect(html).toContain("Xin giải thích rõ hơn");
+    expect(html).toContain("Giải thích thêm");
     expect(html).toContain("bước 2");
     expect(html).toContain("bước 1");
     expect(html).toContain("bước 3");

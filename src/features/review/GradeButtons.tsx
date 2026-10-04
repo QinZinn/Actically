@@ -62,7 +62,7 @@ export default function GradeButtons({
             variant={b.variant}
             disabled={disabled}
             onClick={() => onGrade(b.rating)}
-            className="h-auto py-3 flex-col gap-1"
+            className="h-auto px-2 py-3 flex-col gap-1"
           >
             <Icon className="h-5 w-5" />
             <div className="text-sm font-bold leading-none">{b.label}</div>

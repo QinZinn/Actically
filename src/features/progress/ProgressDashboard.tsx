@@ -1,6 +1,7 @@
 "use client";
 
-import { TrendingUp, CircleDashed } from "lucide-react";
+import { CircleDashed } from "lucide-react";
+import PageHeader from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { TopicProgress } from "@/contracts/dto";
 import TopicProgressCard from "./TopicProgressCard";
@@ -13,16 +14,8 @@ interface ProgressDashboardProps {
 export default function ProgressDashboard({ topics }: ProgressDashboardProps) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-6 h-6 text-primary shrink-0" />
-          <h2 className="text-2xl font-bold tracking-tight">Tiến độ học tập</h2>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Đánh giá dựa trên 5 lần ôn gần nhất của mỗi thẻ theo chính sách reviews-v1.
-        </p>
-        <ProgressLegend />
-      </div>
+      <PageHeader eyebrow="Nhìn lại để học tiếp" title="Tiến độ học tập" description="Xem phần đã vững và phần cần ôn thêm, dựa trên các lần ôn và bài luyện tập đã lưu." />
+      <ProgressLegend />
 
       {topics.length === 0 ? (
         <EmptyState
@@ -31,7 +24,7 @@ export default function ProgressDashboard({ topics }: ProgressDashboardProps) {
           description="Bắt đầu học & ôn để thấy đánh giá."
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="concept-grid">
           {topics.map((t) => (
             <TopicProgressCard key={t.studySetId} topic={t} />
           ))}

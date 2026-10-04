@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, Play } from "lucide-react";
+import { Layers3, Play, CircleCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,14 +17,13 @@ export default function ReviewQueue({
   onStart,
 }: ReviewQueueProps) {
   const total = presentations.length;
-  const progress = total > 0 ? 0 : 0;
 
   return (
-    <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+    <Card className="flex flex-col gap-6 p-5 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <LayoutGrid className="h-5 w-5 text-primary" />
+            <Layers3 className="h-5 w-5 text-primary" />
           </div>
           <div>
             <h2 className="text-lg font-semibold text-foreground">
@@ -40,28 +39,21 @@ export default function ReviewQueue({
         </Badge>
       </div>
 
-      <div className="h-[10px] w-full bg-border rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary transition-all rounded-full"
-          style={{ width: `${total === 0 ? 0 : progress}%` }}
-        />
-      </div>
-
       {total === 0 ? (
-        <Card className="p-10 text-center">
-          <div className="text-3xl mb-2">🎯</div>
+        <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+          <CircleCheck className="mx-auto mb-4 size-9 text-primary" />
           <h3 className="font-semibold text-foreground mb-1">
             Không có thẻ nào đến hạn
           </h3>
           <p className="text-sm text-muted-foreground">
-            Tất cả các thẻ flashcard hiện tại chưa đến hạn ôn. Quay lại sau nhé!
+            Bạn có thể học tiếp hoặc duyệt khái niệm để chuẩn bị thêm thẻ.
           </p>
-        </Card>
+        </div>
       ) : (
         <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="concept-grid">
             {presentations.slice(0, 6).map((p, idx) => (
-              <Card key={p.presentationId} className="p-3 overflow-hidden">
+              <div key={p.presentationId} className="rounded-lg border border-border/70 bg-sidebar/60 p-4 overflow-hidden">
                 <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
                   <span>#{idx + 1}</span>
                 </div>
@@ -70,23 +62,23 @@ export default function ReviewQueue({
                     {p.card.front.slice(0, 400)}
                   </MarkdownRenderer>
                 </div>
-              </Card>
+              </div>
             ))}
             {total > 6 && (
-              <Card className="p-3 bg-popover/60 flex items-center justify-center text-muted-foreground text-sm">
+              <div className="rounded-lg border border-dashed border-border p-4 flex items-center justify-center text-muted-foreground text-sm">
                 + {total - 6} thẻ nữa…
-              </Card>
+              </div>
             )}
           </div>
 
-          <div className="flex justify-center pt-2">
-            <Button size="lg" onClick={onStart} className="gap-2 px-10">
+          <div className="flex justify-end border-t border-border/70 pt-5">
+            <Button onClick={onStart} className="w-full sm:w-auto">
               <Play className="h-5 w-5" />
               Bắt đầu ôn
             </Button>
           </div>
         </>
       )}
-    </div>
+    </Card>
   );
 }

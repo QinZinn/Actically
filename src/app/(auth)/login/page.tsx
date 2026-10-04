@@ -5,7 +5,8 @@ export const fetchCache = "force-no-store";
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, Send } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import ActicallyMark from "@/components/layout/ActicallyMark";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -86,13 +87,13 @@ function LoginPageInner() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-[440px] p-8">
-        <Card className="shadow-lg">
-          <CardContent className="pt-8 pb-6">
+      <div className="w-full max-w-[440px]">
+        <Card>
+          <CardContent className="p-6 sm:p-8">
             <div className="flex flex-col items-center mb-8">
-              <BookOpen className="h-10 w-10 text-primary mb-4" aria-hidden />
-              <h1 className="text-2xl font-bold text-center">
-                Đăng nhập Actically
+              <ActicallyMark className="size-10 text-primary mb-5" />
+              <h1 className="text-2xl font-semibold tracking-tight text-center">
+                {signup ? "Tạo tài khoản Actically" : "Chào mừng đến Actically"}
               </h1>
               <p className="text-muted-foreground text-center mt-2">
                 Học sâu, nhớ lâu
@@ -160,7 +161,7 @@ function LoginPageInner() {
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <Button
                   type="button"
                   variant="ghost"
@@ -175,7 +176,7 @@ function LoginPageInner() {
                   variant="primary"
                   disabled={!SUPABASE_ENABLED || submitting}
                 >
-                  <Send className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4" />
                   {submitting ? "Đang xử lý…" : signup ? "Đăng ký" : "Đăng nhập"}
                 </Button>
               </div>

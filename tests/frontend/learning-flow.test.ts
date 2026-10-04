@@ -123,7 +123,7 @@ it("offers step follow-up only on the latest completed Solve and disables action
   const first = { ...fixture, id: "old-solve", status: "completed" as const };
   const latest = { ...fixture, id: "new-solve", status: "completed" as const };
   const html = renderToString(React.createElement(MessageList, { messages: [first, latest], onFollowUpSolveStep: vi.fn() }));
-  expect((html.match(/Xin giải thích rõ hơn/g) ?? []).length).toBe(latest.solve!.steps.length);
+  expect((html.match(/Giải thích thêm/g) ?? []).length).toBe(latest.solve!.steps.length);
   const disabled = renderToString(React.createElement(MessageList, { messages: [latest], actionsDisabled: true, onFollowUpSolveStep: vi.fn() }));
-  expect(disabled).not.toContain("Xin giải thích rõ hơn");
+  expect(disabled).not.toContain("Giải thích thêm");
 });

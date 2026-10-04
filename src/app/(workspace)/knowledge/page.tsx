@@ -16,6 +16,7 @@ import {
   Pencil,
 } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
+import PageHeader from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -324,29 +325,21 @@ function KnowledgePageInner() {
 
   return (
     <AppLayout>
-      <div className="flex flex-col gap-6 max-w-[1400px] mx-auto">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-2xl font-bold text-foreground">Kiến thức</h1>
-            <p className="text-sm text-muted-foreground">
-              Quản lý bộ học, khái niệm và nguồn tham khảo.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
+      <div className="space-y-6">
+        <PageHeader eyebrow="Xây nền tảng kiến thức" title="Kho kiến thức" description="Tổ chức bộ học, duyệt khái niệm và lưu nguồn để học có căn cứ." actions={<>
             <Button
               variant="secondary"
               onClick={() => { setEditingSet(null); setSsSubject(""); setSsTitle(""); setSsDescription(""); setStudySetDialogOpen(true); }}
               className="gap-2"
             >
               <BookPlus className="h-4 w-4" />
-              Tạo bộ học mới
+              Tạo bộ học
             </Button>
             <Button onClick={handleNewConcept} className="gap-2">
               <Plus className="h-4 w-4" />
-              Tạo khái niệm thủ công
+              Thêm khái niệm
             </Button>
-          </div>
-        </div>
+        </>} />
 
         {duplicates.length > 0 && (
           <DuplicateWarningBanner warnings={duplicates} />
@@ -357,12 +350,12 @@ function KnowledgePageInner() {
           <Button variant="ghost" size="sm" onClick={() => setDeletingSet(studySets.find(x => x.id === studySetId) ?? null)}>Xóa bộ học</Button>
         </div>}
 
-        <div className="grid lg:grid-cols-[300px_1fr] gap-6">
-          <aside className="lg:sticky lg:top-0 lg:self-start">
+        <div className="study-split">
+          <aside className="min-w-0 self-start">
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-3">
                 <LayoutList className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold text-sm">Cây chủ đề</h2>
+                <h2 className="font-semibold text-sm">Bộ học của bạn</h2>
               </div>
               {loading ? (
                 <div className="text-sm text-muted-foreground py-6 text-center">
@@ -489,8 +482,8 @@ function KnowledgePageInner() {
                   <div className="flex flex-col gap-3">
                     {filteredSources.map((s) => (
                       <Card key={s.id} className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1 basis-full sm:basis-0">
                             <div className="flex items-center gap-2 mb-1">
                               <BookOpen className="h-4 w-4 text-muted-foreground shrink-0" />
                               <h3 className="font-semibold truncate">
@@ -680,7 +673,7 @@ function ConceptGrid({
   }
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="concept-grid">
         {concepts.map((c) => (
           <ConceptCard
             key={c.id}

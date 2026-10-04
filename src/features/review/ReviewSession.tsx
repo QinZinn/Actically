@@ -37,8 +37,6 @@ export default function ReviewSession({
     );
   }
 
-  const progress = total > 0 ? ((index) / total) * 100 : 0;
-
   const handleGrade = (rating: ReviewRating) => {
     onGrade(index, rating);
   };
@@ -50,17 +48,8 @@ export default function ReviewSession({
           <Badge variant="solid" size="md">
             {index + 1} / {total}
           </Badge>
-          <div className="text-sm text-muted-foreground hidden sm:block">
-            Thẻ concept id: <span className="font-mono">{current.card.conceptId.slice(0, 8)}</span>
-          </div>
+          <span className="text-sm text-muted-foreground">{revealed ? "Bạn nhớ được đến đâu?" : "Thử trả lời trước khi lật thẻ"}</span>
         </div>
-      </div>
-
-      <div className="h-[10px] w-full bg-border rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary transition-all duration-300 rounded-full"
-          style={{ width: `${progress}%` }}
-        />
       </div>
 
       <div className="pt-2">
@@ -74,7 +63,7 @@ export default function ReviewSession({
       {!revealed ? (
         <Button
           variant="secondary"
-          className="block w-full mt-3 py-5 h-auto text-base gap-2"
+          className="w-full mt-3 py-4 h-auto text-sm gap-2"
           onClick={() => setRevealed(true)}
         >
           <Eye className="h-5 w-5" />

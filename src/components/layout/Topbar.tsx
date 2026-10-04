@@ -7,8 +7,9 @@ import {
   Search,
   Settings,
   LogOut,
+  ChartNoAxesCombined,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getClient } from '@/lib/client';
 import { signOut } from '@/lib/client/auth';
 import { toast } from '@/components/ui/use-toast';
@@ -23,6 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { UserProfile } from '@/contracts/dto';
 import { cn } from '@/lib/client/utils';
+import { workspaceNavigation } from './navigation';
 
 interface TopbarProps {
   profile?: UserProfile | null;
@@ -50,6 +52,9 @@ export default function Topbar({
   profile,
 }: TopbarProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const section = workspaceNavigation.find(item => item.href === pathname) ?? workspaceNavigation[0];
+  const SectionIcon = section.icon;
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
@@ -83,7 +88,7 @@ export default function Topbar({
     <>
       <header
         className={cn(
-          'sticky top-0 z-10 backdrop-blur bg-background/80 border-b border-border h-14 flex items-center px-8 gap-4 shrink-0'
+          'z-10 bg-sidebar/60 border-b border-border h-16 flex items-center px-4 sm:px-6 lg:px-8 gap-3 shrink-0'
         )}
       >
         {onOpenSidebar && (
@@ -99,31 +104,27 @@ export default function Topbar({
         )}
 
         <div className="flex-1 min-w-0 flex items-center gap-3">
-          {breadcrumbs || (
-            title && (
-              <h1 className="text-lg font-semibold text-foreground truncate">
-                {title}
-              </h1>
-            )
-          )}
-          {children}
+          {breadcrumbs || <><SectionIcon className="hidden size-[18px] text-muted-foreground sm:block" /><span className="truncate text-sm font-medium text-foreground">{title ?? section.label}</span></>}
         </div>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {children}
           <Button
-            variant="ghost"
-            size="icon"
+            variant="secondary"
             onClick={() => setSearchOpen(true)}
             aria-label="Tìm kiếm (Ctrl+K)"
             title="Tìm kiếm (Ctrl+K)"
+            className="size-10 px-0 sm:w-auto sm:gap-3 sm:px-3"
           >
             <Search className="w-5 h-5" />
+            <span className="hidden text-sm font-normal text-muted-foreground sm:inline">Tìm kiếm</span>
+            <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground lg:inline">Ctrl K</kbd>
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Tài khoản" className="relative">
-                <div className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                <div className="size-8 rounded-full border border-border bg-popover text-foreground flex items-center justify-center font-semibold text-xs">
                   {initials}
                 </div>
               </Button>
@@ -149,7 +150,7 @@ export default function Topbar({
                 onClick={() => router.push('/progress')}
                 className="cursor-pointer"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
+                <ChartNoAxesCombined className="size-4 mr-2" />
                 Tiến độ
               </DropdownMenuItem>
               <DropdownMenuSeparator />

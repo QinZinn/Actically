@@ -49,12 +49,12 @@ const drawerVariants = cva(
 
 interface DrawerContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
-    VariantProps<typeof drawerVariants> {}
+    VariantProps<typeof drawerVariants> { hideClose?: boolean }
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   DrawerContentProps
->(({ className, children, side = "right", ...props }, ref) => (
+>(({ className, children, side = "right", hideClose = false, ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay />
     <DialogPrimitive.Content
@@ -63,10 +63,10 @@ const DrawerContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
+      {!hideClose && <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
         <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
+        <span className="sr-only">Đóng</span>
+      </DialogPrimitive.Close>}
     </DialogPrimitive.Content>
   </DrawerPortal>
 ));

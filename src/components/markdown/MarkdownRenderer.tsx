@@ -105,14 +105,13 @@ const components: Components = {
   blockquote: ({ children, ...props }) => (
     <blockquote className="border-l-2 border-border pl-4 italic text-muted-foreground my-4" {...htmlProps(props)}>{children}</blockquote>
   ),
+  pre: ({ children, ...props }) => <pre className="my-4 max-w-full overflow-x-auto rounded-lg border border-border bg-sidebar p-4 text-sm" {...htmlProps(props)}>{children}</pre>,
   code: ({ className, children, ...props }) => {
     const match = /language-(\w+)/.exec(className || '');
     const isBlock = match || (className && className.includes('language-'));
     if (isBlock) {
       return (
-        <pre className="bg-popover rounded-lg p-3 overflow-x-auto text-sm my-4">
-          <code className={cn(className, 'text-foreground')} {...htmlProps(props)}>{children}</code>
-        </pre>
+        <code className={cn(className, 'text-foreground')} {...htmlProps(props)}>{children}</code>
       );
     }
     return (
@@ -140,7 +139,7 @@ const components: Components = {
 
 export default function MarkdownRenderer({ children, className }: MarkdownRendererProps) {
   return (
-    <div className={cn('text-foreground', className)}>
+    <div className={cn('min-w-0 break-words text-foreground [&>*:last-child]:mb-0 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden', className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {children}
       </ReactMarkdown>

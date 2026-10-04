@@ -3,6 +3,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BookOpen, EyeOff, RotateCcw } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
+import PageHeader from "@/components/layout/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -126,18 +127,15 @@ function PracticeInner() {
     setDetail(null); setSelectedAttemptId(null); setError(null);
   }
   const writing = !detail && !detailLoading && !detailError && !error;
-  return <AppLayout><div className="max-w-7xl mx-auto space-y-6">
-    <div className="flex flex-wrap justify-between gap-3">
-      <div><h1 className="text-2xl font-bold">Luyện tập</h1><p className="text-sm text-muted-foreground">Giải thích Feynman hoặc viết lại từ trí nhớ.</p></div>
-      <Button variant="secondary" disabled={busy} onClick={() => newDraft()}>Lượt tập mới</Button>
-    </div>
+  return <AppLayout><div className="space-y-6">
+    <PageHeader eyebrow="Hiểu bằng cách diễn đạt" title="Luyện tập" description="Giải thích bằng lời của bạn với Feynman, hoặc viết lại từ trí nhớ với Blurting." actions={<Button variant="secondary" disabled={busy} onClick={() => newDraft()}><RotateCcw className="size-4" />Lượt tập mới</Button>} />
     {loadError && <ErrorState title="Không tải được dữ liệu" body={loadError} onRetry={() => setVersion(v => v + 1)} />}
     {loading ? <p role="status">Đang tải dữ liệu…</p> : <>
       <Tabs value={tab} onValueChange={v => newDraft(v as PracticeKind, false)}>
         <TabsList><TabsTrigger value="feynman" disabled={busy}><BookOpen className="w-4 h-4" /> Feynman</TabsTrigger>
           <TabsTrigger value="blurting" disabled={busy}><EyeOff className="w-4 h-4" /> Blurting</TabsTrigger></TabsList>
       </Tabs>
-      <div className="grid lg:grid-cols-[320px_1fr] gap-6">
+      <div className="study-split">
         <aside className="space-y-4">
           {parent ? <Card className="p-4 text-sm">Viết lại lượt đã lưu, giữ nguyên {refs.length} phiên bản khái niệm tham chiếu.</Card> :
             <Card className="p-4"><ConceptPicker concepts={concepts} studySets={sets} studySetIdFilter={setId}
@@ -147,7 +145,7 @@ function PracticeInner() {
           <PracticeAttemptHistory kind={tab} attempts={attempts} selectedId={selectedAttemptId} onSelect={id => { void selectAttempt(id); }} disabled={busy} />
         </aside>
         <section className="space-y-4 min-w-0">
-          {writing && <Card className="p-5">{tab === "feynman" ?
+          {writing && <Card className="p-4 sm:p-6"><div className="mb-5 space-y-1"><h2 className="text-base font-semibold">{tab === "feynman" ? "Giải thích điều bạn hiểu" : "Viết lại điều bạn nhớ"}</h2><p className="text-sm text-muted-foreground">{tab === "feynman" ? "Dùng ngôn ngữ đơn giản và một ví dụ của riêng bạn." : "Cứ viết tự nhiên, không cần theo một trình tự cố định."}</p></div>{tab === "feynman" ?
             <FeynmanWriter selectedReferenceSnapshots={refs} value={text} onSubmit={() => { void submit(); }} draftId="current" onDraftChange={setText} /> :
             <BlurtingWriter selectedCount={refs.length} value={text} onSubmit={() => { void submit(); }} draftId="current" onDraftChange={setText} />}
           </Card>}

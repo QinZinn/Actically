@@ -33,13 +33,13 @@ export default function PendingQueue({
   if (filtered.length === 0) {
     return (
       <div className="text-sm text-muted-foreground py-12 text-center border border-dashed border-border rounded-lg">
-        Không còn khái niệm chờ duyệt. Tốt lắm! 🎉
+        Bạn đã duyệt hết các khái niệm. Khái niệm mới sẽ xuất hiện sau phiên học.
       </div>
     );
   }
 
   return (
-    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="concept-grid">
       {filtered.map((c) => (
         <ConceptCard
           key={c.id}

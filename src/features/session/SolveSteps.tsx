@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, ListOrdered } from "lucide-react";
+import { MessageCircleQuestion } from "lucide-react";
 import type { SolveResult } from "@/contracts/dto";
 import { Button } from "@/components/ui/button";
 import MarkdownRenderer from "@/components/markdown/MarkdownRenderer";
@@ -13,36 +13,34 @@ interface SolveStepsProps {
 
 export default function SolveSteps({ solve, onFollowUpStep }: SolveStepsProps) {
   return (
-    <div className="mt-4">
-      <h4 className="font-semibold mb-3">Các bước giải</h4>
-      <ol className="list-decimal space-y-4 pl-5">
+    <div className="space-y-4">
+      <h3 className="font-semibold">Các bước giải</h3>
+      <ol className="space-y-4">
         {solve.steps.map((step) => (
-          <li key={step.number} className="mb-2">
-            <span className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold inline-flex mr-3">
+          <li key={step.number} className="flex min-w-0 gap-3 rounded-xl border border-border/70 bg-card p-4 sm:p-5">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-sm font-semibold text-primary">
               {step.number}
             </span>
-            <div className="mt-1 ml-10 space-y-1">
-              <div className="font-medium text-primary">
-                Hành động: <MarkdownRenderer>{step.action}</MarkdownRenderer>
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="font-medium text-foreground">
+                <MarkdownRenderer>{step.action}</MarkdownRenderer>
               </div>
               <div className="text-foreground">
-                Giải thích: <MarkdownRenderer>{step.explanation}</MarkdownRenderer>
+                <MarkdownRenderer>{step.explanation}</MarkdownRenderer>
               </div>
-              <div className="bg-card border border-border rounded-lg p-3 text-sm">
-                <span className="font-semibold">Nguyên tắc / Công thức:</span>{" "}
+              <div className="rounded-lg border-l-2 border-primary/60 bg-sidebar p-3 text-sm">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Nguyên tắc / Công thức</p>
                 <MarkdownRenderer>{step.principle}</MarkdownRenderer>
               </div>
               {onFollowUpStep && (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="mt-2 gap-1"
+                  className="max-w-full gap-2 whitespace-normal text-left"
                   onClick={() => onFollowUpStep(step.number)}
                 >
-                  Xin giải thích rõ hơn
-                  <ListOrdered className="w-4 h-4" />
-                  bước {step.number}
-                  <ChevronRight className="w-4 h-4" />
+                  <MessageCircleQuestion className="size-4" />
+                  Giải thích thêm bước {step.number}
                 </Button>
               )}
             </div>

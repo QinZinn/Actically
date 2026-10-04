@@ -48,7 +48,7 @@ export default function BlurtingWriter({
           <EyeOff className="h-5 w-5 text-warn shrink-0 mt-0.5" />
           <div className="flex-1">
             <div className="font-semibold text-sm text-foreground">
-              🔒 Tài liệu tham khảo đã được ẩn
+              Tài liệu tham khảo đã được ẩn
             </div>
             <div className="text-sm text-muted-foreground mt-1">
               Hãy nhớ và viết lại tất cả kiến thức bạn nhớ về các khái niệm đã chọn
@@ -75,7 +75,7 @@ export default function BlurtingWriter({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 pt-2 border-t border-border/60">
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border/60">
         <div
           className={cn(
             "text-xs font-medium",

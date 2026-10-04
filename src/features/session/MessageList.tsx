@@ -43,7 +43,9 @@ export default function MessageList({
     return (
       <EmptyState
         icon={<MessagesSquare />}
-        title="Chưa có tin nhắn — bắt đầu hỏi bên dưới"
+        title="Bắt đầu từ điều bạn chưa hiểu"
+        description="Đặt câu hỏi, chia sẻ cách suy nghĩ hoặc dán nội dung cần học."
+        className="flex-1 min-h-0"
       />
     );
   }
@@ -54,10 +56,10 @@ export default function MessageList({
       ref={containerRef}
       onScroll={handleScroll}
       className={cn(
-        "flex flex-col gap-5 p-4 h-full overflow-y-auto scroll-smooth"
+        "flex-1 min-h-0 overflow-y-auto overscroll-contain scroll-smooth px-4 py-6 sm:px-6"
       )}
     >
-      {messages.map((m) => (
+      <div className="mx-auto flex w-full max-w-[832px] flex-col gap-8">{messages.map((m) => (
         <MessageBubble
           key={m.id}
           message={m}
@@ -65,7 +67,7 @@ export default function MessageList({
           onFollowUpSolveStep={actionsDisabled || m.id !== latestSolve?.id ? undefined : onFollowUpSolveStep}
           onAnswer={actionsDisabled ? undefined : onAnswer}
         />
-      ))}
+      ))}</div>
     </div>
   );
 }

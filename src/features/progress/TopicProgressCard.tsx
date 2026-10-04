@@ -44,10 +44,10 @@ export default function TopicProgressCard({ topic }: TopicProgressCardProps) {
   const topEvidence = topic.reviewEvidence.slice(0, 5);
 
   return (
-    <Card className="shadow hover:shadow-lg transition-shadow">
+    <Card>
       <CardHeader>
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="font-semibold text-base truncate flex-1 min-w-0">
+        <div className="flex flex-col items-start gap-3">
+          <h3 className="font-semibold text-base leading-6 min-w-0 break-words">
             {topic.title}
           </h3>
           <Badge variant={cfg.variant} className="shrink-0 h-7 px-3">

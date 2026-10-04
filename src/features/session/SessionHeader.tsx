@@ -109,8 +109,8 @@ export default function SessionHeader({
 
   return (
     <>
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/70 px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 flex-1 basis-[240px] items-center gap-2">
           {editing ? (
             <Input
               ref={inputRef}
@@ -128,12 +128,12 @@ export default function SessionHeader({
               style={{ border: "1px solid transparent", boxShadow: "none" }}
             />
           ) : (
-            <h2
-              className="text-lg font-semibold truncate cursor-pointer hover:opacity-80"
+            <h1
+              className="text-base font-semibold truncate cursor-pointer hover:opacity-80"
               onDoubleClick={() => { if (!busy) startEdit(); }}
             >
               {session.title}
-            </h2>
+            </h1>
           )}
           {!editing && (
             <Button
@@ -150,7 +150,7 @@ export default function SessionHeader({
           <Badge
             variant="default"
             className={cn(
-              "gap-1 border border-primary/40 rounded-md px-3 py-1 h-[26px] font-medium"
+              "hidden shrink-0 gap-1 rounded-md px-2 py-1 font-medium sm:inline-flex"
             )}
           >
             {MODE_LABEL[session.mode]}
@@ -165,7 +165,7 @@ export default function SessionHeader({
             className="gap-1"
           >
             <Inbox className="w-4 h-4" />
-            Kết thúc & trích khái niệm
+            Kết thúc phiên
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

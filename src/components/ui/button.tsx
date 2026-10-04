@@ -11,12 +11,12 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-primary text-primary-foreground hover:brightness-110",
+          "bg-primary text-primary-foreground hover:bg-[#8BD620] shadow-sm",
         secondary:
           "bg-card text-foreground border border-border hover:bg-popover",
         ghost: "hover:bg-accent text-foreground",
         outline: "border border-border bg-transparent",
-        danger: "bg-[var(--error)] text-white",
+        danger: "bg-error/10 text-error border border-error/30 hover:bg-error/20",
         "grade-again":
           "bg-red-500/10 text-error border border-[var(--error-border)] hover:bg-[var(--error)]/20",
         "grade-hard":
@@ -27,11 +27,11 @@ const buttonVariants = cva(
           "bg-primary/10 text-primary hover:bg-primary/20",
       },
       size: {
-        default: "h-[38px] px-4 text-sm rounded-lg",
-        sm: "h-8 px-3 text-xs",
-        xs: "h-[26px] px-2 text-xs rounded-md",
-        icon: "h-9 w-9",
-        lg: "h-11 px-6 rounded-md",
+        default: "h-10 px-4 text-sm rounded-lg",
+        sm: "h-9 px-3 text-xs",
+        xs: "h-8 px-2.5 text-xs rounded-md",
+        icon: "size-10 shrink-0",
+        lg: "h-12 px-6 rounded-lg",
       },
     },
     defaultVariants: {

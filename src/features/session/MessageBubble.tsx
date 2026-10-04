@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { RefreshCw, XCircle } from "lucide-react";
+import { RefreshCw, XCircle, BookOpenText } from "lucide-react";
 import type { Message } from "@/contracts/dto";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,12 +36,13 @@ export default function MessageBubble({
     >
       <div
         className={cn(
-          "flex flex-col gap-1.5",
-          isUser ? "items-end" : "items-start"
+          "flex min-w-0 flex-col gap-2",
+          isUser ? "max-w-[90%] sm:max-w-[80%] items-end" : "w-full items-start"
         )}
       >
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">{roleLabel}</span>
+          {!isUser && <span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary"><BookOpenText className="size-3.5" /></span>}
+          <span className="font-medium text-muted-foreground">{roleLabel}</span>
           {isStreaming ? (
             <Skeleton className="w-16 h-[18px] rounded" />
           ) : isFailed ? (
@@ -49,11 +50,7 @@ export default function MessageBubble({
               <XCircle className="w-3 h-3" />
               {message.status === "cancelled" ? "Đã hủy" : "Lỗi"}
             </Badge>
-          ) : (
-            <Badge variant="secondary" size="sm">
-              OK
-            </Badge>
-          )}
+          ) : null}
           {isFailed && onRetry && (
             <Button
               variant="ghost"
@@ -67,12 +64,12 @@ export default function MessageBubble({
           )}
         </div>
 
-        <div
+        {(!message.solve || isUser) && <div
           className={cn(
-            "px-4 py-3",
+            "min-w-0 max-w-full text-sm leading-7",
             isUser
-              ? "max-w-[70%] rounded-[14px_14px_4px_14px] bg-popover text-foreground"
-              : "max-w-[80%] rounded-[14px_14px_14px_4px] bg-sidebar px-4 py-3"
+              ? "rounded-2xl rounded-br-md border border-border/60 bg-popover px-4 py-3 text-foreground"
+              : "w-full pl-0 sm:pl-8"
           )}
         >
           <MarkdownRenderer>
@@ -81,10 +78,10 @@ export default function MessageBubble({
           {isStreaming && (
             <span className="inline-block w-2 h-5 ml-0.5 -mb-1 bg-primary/70 animate-pulse" />
           )}
-        </div>
+        </div>}
 
         {!isUser && message.solve && (
-          <div className="w-full max-w-[80%] mt-2">
+          <div className="w-full min-w-0 space-y-4 sm:pl-8">
             <SolveSteps
               solve={message.solve}
               onFollowUpStep={

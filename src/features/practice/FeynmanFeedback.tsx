@@ -18,53 +18,13 @@ interface ScoreCardProps {
 }
 
 function ScoreCard({ label, score, insufficient }: ScoreCardProps) {
-  const pct = score != null ? Math.round((score / 10) * 100) : 0;
-  const radius = 34;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (pct / 100) * circumference;
-
   return (
-    <Card className="p-4 flex flex-col items-center gap-2">
-      <h4 className="text-sm font-semibold text-foreground">{label}</h4>
-      <div className="relative w-[80px] h-[80px]">
-        <svg className="w-[80px] h-[80px] -rotate-90" viewBox="0 0 80 80">
-          <circle
-            cx="40"
-            cy="40"
-            r={radius}
-            stroke="currentColor"
-            strokeWidth="6"
-            fill="none"
-            className={cn(insufficient ? "text-muted/30" : "text-border")}
-          />
-          <circle
-            cx="40"
-            cy="40"
-            r={radius}
-            stroke="currentColor"
-            strokeWidth="6"
-            fill="none"
-            strokeDasharray={circumference}
-            strokeDashoffset={insufficient ? circumference : offset}
-            strokeLinecap="round"
-            className={cn(
-              "transition-all duration-500",
-              insufficient ? "text-muted/30" : "text-primary"
-            )}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span
-            className={cn(
-              "text-3xl font-bold leading-none",
-              insufficient && "text-muted-foreground"
-            )}
-          >
-            {insufficient ? "—" : score}
-          </span>
-        </div>
-      </div>
-    </Card>
+    <div className="min-w-0 rounded-lg border border-border/70 bg-sidebar p-3 sm:p-4">
+      <h4 className="text-xs font-medium text-muted-foreground">{label}</h4>
+      <p className={cn("mt-2 text-2xl font-semibold tabular-nums", insufficient ? "text-muted-foreground" : "text-foreground")}>
+        {insufficient || score === null ? "—" : <>{score}<span className="ml-1 text-xs font-normal text-muted-foreground">/10</span></>}
+      </p>
+    </div>
   );
 }
 

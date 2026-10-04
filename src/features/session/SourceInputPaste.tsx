@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookOpenCheck, FileWarning } from "lucide-react";
+import { BookOpenCheck } from "lucide-react";
 import type { Source, StudySet } from "@/contracts/dto";
 import type { SourceCreate } from "@/contracts/requests";
 import { Button } from "@/components/ui/button";
@@ -143,22 +143,18 @@ export default function SourceInputPaste({
 
   return (
     <>
-      <Card className="p-3 mt-3">
-        <div className="flex items-center justify-between mb-3">
-          <h5 className="text-sm font-semibold">Dán nội dung nguồn tài liệu</h5>
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <FileWarning className="w-3 h-3" />
-            Tải tệp lên chưa hỗ trợ ở bản MVP
-          </span>
-        </div>
+      <Card className="p-4 mt-3">
+        <h3 className="mb-3 text-sm font-semibold">Dán nội dung nguồn tài liệu</h3>
         <div className="space-y-3">
           <Input
-            placeholder="Tên tài liệu, e.g. Giải tích lớp 11 trang 45"
+            aria-label="Tên tài liệu"
+            placeholder="Ví dụ: Giải tích lớp 11, trang 45"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
           />
           <Textarea
+            aria-label="Nội dung tài liệu"
             rows={4}
             placeholder="Dán toàn bộ nội dung… (tối đa 50.000 ký tự)"
             value={content}
@@ -188,19 +184,21 @@ export default function SourceInputPaste({
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <label className="text-sm font-medium mb-1 block">Môn học</label>
+              <label htmlFor="source-new-subject" className="text-sm font-medium mb-1 block">Môn học</label>
               <Input
-                placeholder="e.g. Toán học"
+                id="source-new-subject"
+                placeholder="Ví dụ: Toán học"
                 value={newSubject}
                 onChange={(e) => setNewSubject(e.target.value)}
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">
+              <label htmlFor="source-new-set" className="text-sm font-medium mb-1 block">
                 Tên bộ học <span className="text-error">*</span>
               </label>
               <Input
-                placeholder="e.g. Giải tích lớp 11"
+                id="source-new-set"
+                placeholder="Ví dụ: Giải tích lớp 11"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 required

@@ -34,19 +34,19 @@ export default function SidebarNavItem({
   const isSelected =
     selectedProp !== undefined
       ? selectedProp
-      : pathname === href || pathname.startsWith(href + '/');
+      : pathname === href || (href === '/' ? pathname.startsWith('/sessions/') : pathname.startsWith(href + '/'));
 
   const content = (
     <div
       className={cn(
-        'relative flex items-center h-[38px] px-3 rounded-lg gap-[9px] text-sm font-medium transition-colors w-full',
+        'relative flex min-w-0 items-center h-11 px-3 rounded-lg gap-3 text-sm font-medium transition-colors w-full',
         isSelected
-          ? 'bg-popover text-foreground [&_svg]:text-primary'
+          ? 'bg-primary/10 text-foreground [&_svg]:text-primary'
           : 'text-muted-foreground hover:bg-popover/60 hover:text-foreground',
         collapsed && 'justify-center px-0'
       )}
     >
-      <Icon className="w-5 h-5 shrink-0" />
+      <Icon className="size-5 shrink-0" aria-hidden />
       {!collapsed && <span className="truncate">{label}</span>}
       {!collapsed && badgeNumber !== undefined && badgeNumber > 0 && (
         <span className="absolute right-2 inline-flex items-center justify-center px-2 h-[22px] rounded-full bg-popover text-primary text-[11px] font-semibold">
@@ -66,7 +66,7 @@ export default function SidebarNavItem({
     return (
       <Tooltip delayDuration={100}>
         <TooltipTrigger asChild>
-          <Link href={href} onClick={handleClick} className="block">
+          <Link href={href} onClick={handleClick} aria-current={isSelected ? 'page' : undefined} aria-label={label} className="block rounded-lg">
             {content}
           </Link>
         </TooltipTrigger>
@@ -78,7 +78,7 @@ export default function SidebarNavItem({
   }
 
   return (
-    <Link href={href} onClick={handleClick} className="block">
+    <Link href={href} onClick={handleClick} aria-current={isSelected ? 'page' : undefined} className="block rounded-lg">
       {content}
     </Link>
   );

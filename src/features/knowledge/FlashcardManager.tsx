@@ -55,7 +55,7 @@ export default function FlashcardManager({ concepts, version }: { concepts: Conc
   return <section className="space-y-3 mt-6">
     <h2 className="font-semibold">Thẻ ôn tập từ khái niệm đã duyệt</h2>
     {error && <div role="alert">{error}<Button variant="ghost" onClick={() => setReload(v => v + 1)}>Tải lại thẻ</Button></div>}
-    <div className="grid md:grid-cols-2 gap-3">
+    <div className="concept-grid">
       {concepts.filter(c => c.status === "approved").map(c => {
         const card = cards.find(x => x.conceptId === c.id);
         return <Card key={c.id} className="p-4 space-y-3">

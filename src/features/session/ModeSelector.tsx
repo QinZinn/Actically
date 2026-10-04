@@ -24,7 +24,7 @@ const modes: {
 
 export default function ModeSelector({ value, onChange, disabled }: ModeSelectorProps) {
   return (
-    <div className="flex items-center gap-1">
+    <div role="group" aria-label="Cách học" className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-xl border border-border/70 bg-sidebar p-1">
       {modes.map((m) => {
         const selected = value === m.value;
         return (
@@ -37,10 +37,10 @@ export default function ModeSelector({ value, onChange, disabled }: ModeSelector
             size="xs"
             onClick={() => onChange(m.value)}
             className={cn(
-              "gap-1.5 font-medium h-[26px] rounded-md px-3 py-1 transition-colors",
+              "gap-1.5 font-medium h-9 rounded-lg px-3 transition-colors",
               selected
-                ? "bg-primary/15 text-primary border border-primary/40 hover:bg-primary/20 hover:text-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-accent border border-transparent"
+                ? "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
             )}
           >
             {m.icon}

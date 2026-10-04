@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Inbox, BookOpen } from "lucide-react";
+import { Send, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -54,24 +54,7 @@ export default function FeynmanWriter({
             Chưa chọn
           </Badge>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {selectedReferenceSnapshots.map((ref) => (
-              <Badge
-                key={ref.conceptId}
-                variant="secondary"
-                size="sm"
-                className="gap-1"
-              >
-                <BookOpen className="h-3 w-3" />
-                <span className="max-w-[160px] truncate">
-                  {ref.conceptId.slice(0, 8)}…
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  r{ref.revision}
-                </span>
-              </Badge>
-            ))}
-          </div>
+          <Badge variant="secondary" className="gap-1.5"><BookOpen className="size-3.5" />{refCount} khái niệm tham chiếu</Badge>
         )}
       </div>
 
@@ -89,7 +72,7 @@ export default function FeynmanWriter({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-4 pt-2 border-t border-border/60">
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-border/60">
         <div
           className={cn(
             "text-xs font-medium",
@@ -108,7 +91,7 @@ export default function FeynmanWriter({
           )}
         </div>
         <Button onClick={handleSubmit} disabled={!canSubmit} className="gap-2">
-          <Inbox className="h-4 w-4" />
+          <Send className="h-4 w-4" />
           Gửi bài giải thích
         </Button>
       </div>
