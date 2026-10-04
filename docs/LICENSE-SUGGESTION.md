@@ -1,4 +1,8 @@
-# Suggested license — owner review required
+# License decision — MIT adopted
+
+The owner requested adoption of the MIT License on 2026-10-04. The root [LICENSE](../LICENSE) is the authoritative license for Actically's original code and documentation, with copyright attributed to Actically contributors. Third-party dependencies and supplied reference assets retain their respective terms.
+
+The proposal below is retained as historical context and is superseded by the root LICENSE.
 
 Suggested license for the original Actically application code: MIT. This document is a proposal, not an assertion of rights to third-party mockup content or dependencies. Before publication, the project owner should confirm the copyright holder/year and rights to any exported design assets. Dependencies retain their own licenses. The preserved reference HTML and prompt kit were supplied by the owner and are not relicensed by this suggestion.
 

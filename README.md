@@ -172,4 +172,4 @@ Historical handoffs record implementation-time limitations; the validation secti
 
 ## License
 
-A license has not yet been finalized. [LICENSE-SUGGESTION.md](docs/LICENSE-SUGGESTION.md) contains an MIT proposal for owner review, not an adopted license. Third-party dependencies and supplied reference assets retain their respective terms.
+Actically's original code and documentation are licensed under the [MIT License](LICENSE). Copyright (c) 2026 Actically contributors. Third-party dependencies and supplied reference assets retain their respective terms.
