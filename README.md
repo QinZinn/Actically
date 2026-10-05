@@ -10,6 +10,14 @@ Actically is a Vietnamese learning workspace that connects guided questions, sel
 
 **Public demo:** not published yet. **Demo video:** not published yet.
 
+## For judges and testers
+
+- **Code repository:** [github.com/QinZinn/Actically](https://github.com/QinZinn/Actically)
+- **License:** [MIT](LICENSE), an [OSI-approved open source license](https://opensource.org/license/mit).
+- **Setup:** follow [Run locally](#run-locally) for real Supabase storage and Nemotron inference, or [Preview without credentials](#preview-without-credentials) for a labelled fixture preview.
+- **NVIDIA and Nebius implementation:** see [How we use NVIDIA Nemotron](#how-we-use-nvidia-nemotron) and [How Nebius Token Factory accelerated development](#how-nebius-token-factory-accelerated-development).
+- **Reproduce the learning flow:** follow the [demo walkthrough](#demo-walkthrough). Validation commands and the distinction between synthetic and live checks are in [Checks and validation](#checks-and-validation).
+
 ## Features
 
 | Area | What you can do |
@@ -23,6 +31,37 @@ Actically is a Vietnamese learning workspace that connects guided questions, sel
 | Progress and history | Revisit saved sessions and practice attempts, and follow progress grounded in review records. |
 
 The interface supports desktop and narrow screens, Markdown, mathematical notation, search and a collapsible sidebar. AI feedback is learning guidance, not a certification of mastery.
+
+## How we use NVIDIA Nemotron
+
+NVIDIA Nemotron is the application's only configured model family for real AI features. Requests run on the server through Nebius Token Factory; API keys are never sent to the browser. The exact model is selected with `NEBIUS_MODEL` and checked against the account's authenticated model catalog. There is no silent fallback to another model provider.
+
+| Learning task | Nemotron's role |
+| --- | --- |
+| Socratic and Ask chat | Generate a focused guiding question or a direct explanation, streamed to the learner. |
+| Solve | Return structured teaching steps, principles and a comprehension question; support follow-up on an individual step. |
+| Feynman | Compare the learner's explanation with approved concept snapshots and return evidence-linked feedback and scores when evidence is sufficient. |
+| Blurting | Identify correct recall, omissions and misconceptions against selected references, distinguishing missing material from incorrect claims. |
+| Concept extraction | Propose concepts grounded in supplied source snapshots. The learner must approve them before card generation. |
+| Flashcards | Generate a recall question and answer from an approved concept, retaining source provenance. |
+
+The application uses inference rather than training or fine-tuning Nemotron. It validates structured responses with Zod and checks literal source excerpts and learner quotations before accepting results. These checks establish format and evidence integrity, not a guarantee of semantic correctness. FSRS review scheduling and progress aggregation are application logic, separate from model-generated feedback.
+
+Implementation references:
+
+- [Nebius/Nemotron provider](src/server/ai/nebius.ts): authenticated catalog checks, chat completions, streaming, structured responses, timeouts and cancellation.
+- [Versioned prompts](src/server/ai/prompts.ts): instructions for each learning task.
+- [Evidence validation](src/server/ai/validation.ts): source and quotation checks.
+- [AI service contracts](src/contracts/ai.ts) and [server composition](src/server/composition.ts): integration with the authenticated application.
+- [Live AI tests](tests/ai/live.test.ts): opt-in checks with synthetic educational examples sent to the configured real model.
+
+## How Nebius Token Factory accelerated development
+
+Token Factory provides the hosted inference layer for Nemotron through its OpenAI-compatible API at `https://api.tokenfactory.nebius.com/v1/`. This let us integrate the model without provisioning GPU servers, downloading model weights or operating an inference server.
+
+One server-side adapter uses the same API for streamed conversations and JSON-schema requests across the learning features. That kept provider integration in one place while we developed task-specific prompts, response validation and the frontend learning flow. The authenticated catalog and [model-listing script](scripts/list-nebius-models.mjs) also make account-specific model configuration reproducible for testers. These are concrete workflow benefits; no development-time or performance speedup has been benchmarked.
+
+**Nebius services used:** Token Factory model catalog and inference API. No other Nebius tools or services, dedicated GPU deployment, fine-tuning or Nebius storage are used in the current implementation. Authentication and persistent storage use Supabase. Vercel deployment instructions are provided below.
 
 ## Built with
 
@@ -40,9 +79,11 @@ The interface supports desktop and narrow screens, Markdown, mathematical notati
 
 ### 1. Install dependencies
 
-Install Node.js 24 and pnpm 11.19.0, then run from the repository root:
+Install Node.js 24 and pnpm 11.19.0, then clone the repository and install its locked dependencies:
 
 ```sh
+git clone https://github.com/QinZinn/Actically.git
+cd Actically
 pnpm install --frozen-lockfile
 ```
 
@@ -172,4 +213,4 @@ Historical handoffs record implementation-time limitations; the validation secti
 
 ## License
 
-Actically's original code and documentation are licensed under the [MIT License](LICENSE). Copyright (c) 2026 Actically contributors. Third-party dependencies and supplied reference assets retain their respective terms.
+Actically's original code and documentation are licensed under the [MIT License](LICENSE), an [OSI-approved license](https://opensource.org/license/mit). Copyright (c) 2026 Actically contributors. Third-party dependencies, NVIDIA model weights and supplied reference assets retain their respective terms; the application's MIT license does not relicense them. Model weights are not distributed in this repository.
