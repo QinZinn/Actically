@@ -24,7 +24,7 @@ export const ToastViewport = React.forwardRef<
   <ol
     ref={ref}
     className={cn(
-      "fixed bottom-0 right-0 z-[100] flex max-h-screen w-full flex-col-reverse gap-2 p-4 sm:max-w-[420px]",
+      "pointer-events-none fixed bottom-0 right-0 z-[100] flex max-h-screen w-full flex-col-reverse gap-2 p-4 sm:max-w-[420px]",
       className
     )}
     {...props}
@@ -40,6 +40,7 @@ export interface ToastItemProps
 
 export const ToastItem = React.forwardRef<HTMLLIElement, ToastItemProps>(
   ({ className, toast, onClose, ...props }, ref) => {
+    if (toast.open === false) return null;
     const variant = toast.variant ?? "default";
     return (
       <li
@@ -100,7 +101,6 @@ export function Toaster() {
             key={t.id}
             toast={t}
             onClose={() => dismiss(t.id)}
-            data-state="open"
           />
         ))}
       </ToastViewport>

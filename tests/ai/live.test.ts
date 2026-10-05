@@ -20,4 +20,9 @@ describe.skipIf(!enabled)("LIVE Nebius account + Nemotron capabilities / synthet
     expect(results[0].scores.completeness!).toBeGreaterThanOrEqual(results[1].scores.completeness!);
     expect(results[2].observations.some(o => o.learnerQuote !== null)).toBe(true);
   }, 190000);
+  it("returns valid Blurting evidence for an incorrect recalled formula", async () => {
+    const result = await service!.evaluateBlurting(practiceInput(2));
+    expect(result.sufficientEvidence).toBe(true);
+    expect(result.incorrect.some(f => f.learnerQuote?.text.includes("P(A)P(B)"))).toBe(true);
+  }, 65000);
 });

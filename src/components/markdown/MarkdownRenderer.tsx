@@ -14,6 +14,17 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+// Protect math before Markdown consumes LaTeX escapes such as \[ and \,.
+function prepareMathMarkdown(text: string) {
+  return text.replace(/(`{3,}[\s\S]*?`{3,}|`[^`\n]*`)|\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)|\$\$([\s\S]*?)\$\$|\$([^$\n]+)\$/g,
+    (match, code, bracket, paren, block, inline) => {
+      if (code) return match;
+      const delimiter = bracket !== undefined || block !== undefined ? '$$' : '$';
+      const body: string = bracket ?? paren ?? block ?? inline;
+      return delimiter + body.replace(/[\\*_`[\]]/g, '\\$&') + delimiter;
+    });
+}
+
 function renderMathInText(text: string): ReactNode[] {
   const nodes: ReactNode[] = [];
   let remaining = text;
@@ -65,25 +76,15 @@ function htmlProps<T extends { node?: unknown }>(props: T) {
   return attributes;
 }
 
+function renderMathChildren(children: ReactNode): ReactNode {
+  return React.Children.map(children, child => typeof child === 'string' ? renderMathInText(child) : child);
+}
+
 const components: Components = {
   p: ({ children, ...props }) => {
-  const process = (child: ReactNode): ReactNode => {
-    if (typeof child === 'string') {
-      const result = renderMathInText(child);
-      return result.length === 1 ? result[0] : result;
-    }
-    if (Array.isArray(child)) {
-      return child.map((c, i) => (
-        <React.Fragment key={i}>{process(c)}</React.Fragment>
-      ));
-    }
-    return child;
-  };
   return (
     <div className="leading-7 text-foreground mb-4" {...htmlProps(props)}>
-      {Array.isArray(children) ? children.map((c, i) => (
-        <React.Fragment key={i}>{process(c)}</React.Fragment>
-      )) : process(children)}
+      {renderMathChildren(children)}
     </div>
   );
 },
@@ -100,7 +101,7 @@ const components: Components = {
     <ol className="list-decimal ml-5 space-y-1 text-foreground mb-4" {...htmlProps(props)}>{children}</ol>
   ),
   li: ({ children, ...props }) => (
-    <li className="text-foreground" {...htmlProps(props)}>{children}</li>
+    <li className="text-foreground" {...htmlProps(props)}>{renderMathChildren(children)}</li>
   ),
   blockquote: ({ children, ...props }) => (
     <blockquote className="border-l-2 border-border pl-4 italic text-muted-foreground my-4" {...htmlProps(props)}>{children}</blockquote>
@@ -141,7 +142,7 @@ export default function MarkdownRenderer({ children, className }: MarkdownRender
   return (
     <div className={cn('min-w-0 break-words text-foreground [&>*:last-child]:mb-0 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden', className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {children}
+        {prepareMathMarkdown(children)}
       </ReactMarkdown>
     </div>
   );
