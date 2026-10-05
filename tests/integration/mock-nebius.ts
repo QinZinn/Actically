@@ -35,7 +35,9 @@ export function mockNebiusTransport() {
     const source = input.sources[0];
     const refs: SourceRef[] = source ? [{ sourceId: source.sourceId, revision: source.revision, excerpt: "P(A|B) = P(A ∩ B) / P(B)" }] : [];
     let result: unknown;
-    if (task === "actically_extraction_v1") {
+    if (task === "actically_socratic_v1") {
+      result = { question: "Vì sao công thức xác suất có điều kiện cần P(B) > 0?" };
+    } else if (task === "actically_extraction_v1") {
       result = { sufficientEvidence: !!source, concepts: source ? [{ title: "Xác suất có điều kiện", body: "Với P(B) > 0, P(A|B) = P(A ∩ B) / P(B).", sourceRefs: refs }] : [] };
     } else if (task === "actically_flashcard_v1") {
       result = { front: "Công thức xác suất có điều kiện và điều kiện mẫu số?", back: input.concept!.body, sourceRefs: input.concept!.sourceRefs };

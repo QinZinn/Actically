@@ -6,6 +6,8 @@ Backend owns authenticated authorization, persistent per-user rate limits, sourc
 
 Provider configuration is server-only: NEBIUS_API_KEY, NEBIUS_MODEL, official `https://api.tokenfactory.nebius.com/v1/`. Choose one exact NVIDIA Nemotron ID from the account's /models result, never substitute another provider/model. Credentials absent => unavailable. Model accessibility, inference and model-specific structured-output/streaming capabilities are separate live checks; documentation alone cannot prove account access.
 
+Socratic generation uses a private structured question schema and validates the full short question before emitting delta/done. This keeps the existing HTTP/SSE contract and persistence behavior while preventing malformed partial Socratic replies from appearing. Ask continues to stream provider text. Cancellation and the same operation deadline apply to both paths.
+
 Official references checked 2026-10-03:
 - [Nebius quickstart](https://docs.tokenfactory.nebius.com/quickstart): OpenAI-compatible v1 base URL.
 - [List models](https://docs.tokenfactory.nebius.com/api-reference/models/list-models): account catalog.

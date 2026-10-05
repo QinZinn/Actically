@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { NebiusLearningService } from "@/server/ai/nebius";
-import { educationalFixtures, practiceInput } from "./educational-fixtures";
+import { educationalFixtures, practiceInput, source } from "./educational-fixtures";
 const enabled = process.env.ACTICALLY_LIVE_AI === "true" && !!process.env.NEBIUS_API_KEY && !!process.env.NEBIUS_MODEL;
 // Explicit opt-in: these tests make bounded paid API calls using ONLY synthetic fixtures.
 describe.skipIf(!enabled)("LIVE Nebius account + Nemotron capabilities / synthetic educational evaluation", () => {
@@ -24,5 +24,13 @@ describe.skipIf(!enabled)("LIVE Nebius account + Nemotron capabilities / synthet
     const result = await service!.evaluateBlurting(practiceInput(2));
     expect(result.sufficientEvidence).toBe(true);
     expect(result.incorrect.some(f => f.learnerQuote?.text.includes("P(A)P(B)"))).toBe(true);
+  }, 65000);
+  it("completes source-grounded Socratic output within the token budget", async () => {
+    const input = { ...practiceInput(), sources: [{ ...source, content: source.content + " Một lớp có 30 học sinh, 8 bạn học Tin và 4 bạn học cả Tin lẫn Toán. Nếu biết bạn được chọn học Tin, xác suất học Toán là 4/8, không phải 4/30." }], mode: "socratic" as const,
+      messages: [{ role: "user" as const, content: "Mình nghĩ xác suất một bạn học Tin cũng học Toán là 4/30 vì lớp có 30 người. Hãy giúp mình tự nhận ra điểm sai bằng một câu hỏi gợi mở." }], followUpStep: null, previousSolve: null };
+    let answer = "", completed = false;
+    for await (const event of service!.streamChat(input)) { if (event.event === "delta") answer += event.text; else completed = true; }
+    expect(completed).toBe(true);
+    expect(answer.match(/[?？]/g)).toHaveLength(1);
   }, 65000);
 });

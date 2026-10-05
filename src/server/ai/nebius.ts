@@ -12,6 +12,7 @@ type Config = { apiKey: string; model: string; baseUrl?: string; fetch?: typeof 
 const completionSchema = z.object({ choices: z.array(z.object({ finish_reason: z.string().nullable(), message: z.object({ content: z.string().nullable(), refusal: z.string().nullable().optional() }) })).min(1) });
 const chunkSchema = z.object({ choices: z.array(z.object({ finish_reason: z.string().nullable().optional(), delta: z.object({ content: z.string().nullable().optional(), refusal: z.string().nullable().optional() }) })) });
 const hiddenTrace = /<\s*\/?\s*(?:think|analysis|reasoning)\b/i;
+const socraticQuestionSchema = z.strictObject({ question: z.string().min(2).max(600).regex(/^[^?？\r\n]+[?？]$/) });
 
 async function readChunk(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal) {
   signal.throwIfAborted();
@@ -108,6 +109,15 @@ export class NebiusLearningService implements AiLearningService {
     if (input.mode === "solve") throw new AiServiceError("VALIDATION_ERROR", "Dùng phương thức Solve cho kết quả có cấu trúc.");
     if (!input.messages.length || input.messages.length > 24 || input.messages.some(m => !["user", "assistant"].includes(m.role) || !m.content.trim() || m.content.length > 16000)) throw new AiServiceError("VALIDATION_ERROR", "Lịch sử trò chuyện không hợp lệ hoặc quá dài.");
     const data = { messages: input.messages, followUpStep: input.followUpStep, previousSolve: input.previousSolve };
+    if (input.mode === "socratic") {
+      // A short question must pass validation before any learner-facing text is emitted.
+      const { question } = await this.structured("socratic", input, data, socraticQuestionSchema);
+      if (input.signal?.aborted) throw new AiServiceError("AI_CANCELLED", "Yêu cầu đã bị hủy.");
+      yield { event: "delta", text: question };
+      if (input.signal?.aborted) throw new AiServiceError("AI_CANCELLED", "Yêu cầu đã bị hủy.");
+      yield { event: "done", content: question, sourceRefs: [] };
+      return;
+    }
     const op = this.begin(input, data); let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
       await this.verifyModel(op.signal);
@@ -138,7 +148,6 @@ export class NebiusLearningService implements AiLearningService {
         }
       }
       if (!ended || !stopped || !content.trim()) invalidOutput();
-      if (input.mode === "socratic" && (content.match(/[?？]/g)?.length ?? 0) !== 1) invalidOutput();
       op.signal.throwIfAborted();
       if (emitted < content.length) yield { event: "delta", text: content.slice(emitted) };
       op.signal.throwIfAborted();

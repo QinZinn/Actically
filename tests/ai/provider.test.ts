@@ -65,11 +65,25 @@ describe("Nebius provider wire format and bounds (mocked)", () => {
     expect(events.filter(e => e.event === "delta").map(e => e.text).join("")).toBe(text);
     expect(events.at(-1)).toEqual({ event: "done", content: text, sourceRefs: [] }); expect(JSON.stringify(events)).not.toContain("scratchpad");
   });
-  it("does not complete truncated or invalid Socratic output", async () => {
+  it("does not complete truncated or unfinished Ask output", async () => {
     await expect(collect(provider([catalog(), streamResponse("Một câu trả lời", "length")]).service)).rejects.toMatchObject({ code: "AI_INVALID_OUTPUT" });
     await expect(collect(provider([catalog(), streamResponse("Chưa xong", "stop", false)]).service)).rejects.toMatchObject({ code: "AI_INVALID_OUTPUT" });
-    await expect(collect(provider([catalog(), streamResponse("Câu một? Câu hai?")]).service, { ...input, mode: "socratic" })).rejects.toMatchObject({ code: "AI_INVALID_OUTPUT" });
-    const events = await collect(provider([catalog(), streamResponse("Em chọn không gian mẫu nào?")]).service, { ...input, mode: "socratic" }); expect(events.at(-1)?.event).toBe("done");
+  });
+  it("validates a structured Socratic question before emitting text over the existing events", async () => {
+    const question = "Em chọn không gian mẫu nào?";
+    const { service, fetcher } = provider([catalog(), completion({ question })]);
+    expect(await collect(service, { ...input, mode: "socratic" })).toEqual([{ event: "delta", text: question }, { event: "done", content: question, sourceRefs: [] }]);
+    const body = JSON.parse(String(fetcher.mock.calls[1][1]?.body));
+    expect(body.stream).toBe(false);
+    expect(body.response_format.json_schema.schema.properties.question.pattern).toBe("^[^?？\\r\\n]+[?？]$");
+  });
+  it("never emits malformed, truncated or hidden Socratic content", async () => {
+    for (const [question, finish] of [["Câu một? Câu hai?", "stop"], ["Chưa có câu hỏi", "stop"], ["<think>private reasoning</think> Câu hỏi?", "stop"], ["Câu hỏi?", "length"]]) {
+      const seen: AiChatEvent[] = [];
+      const { service } = provider([catalog(), completion({ question }, finish)]);
+      await expect((async () => { for await (const event of service.streamChat({ ...input, mode: "socratic" })) seen.push(event); })()).rejects.toMatchObject({ code: "AI_INVALID_OUTPUT" });
+      expect(seen).toEqual([]);
+    }
   });
   it("rejects hidden trace tags without leaking them", async () => {
     const { service } = provider([catalog(), streamResponse("<think>private reasoning</think> answer")]);
