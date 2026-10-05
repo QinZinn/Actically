@@ -9,7 +9,7 @@ const meta = frame("meta", { requestId: input.requestId, sessionId: "s1", userMe
 const message = { id: "a1", sessionId: "s1", role: "assistant", content: "Xin chào", status: "completed", solve: null,
   requestId: input.requestId, requestContext: { mode: "ask", followUpStep: null }, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" };
 const done = frame("done", { requestId: input.requestId, message });
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 function response(value: unknown, status = 200) { vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(value, { status }))); }
 function stream(text: string, byteByByte = false) {
   const bytes = new TextEncoder().encode(text);
@@ -70,15 +70,82 @@ it("bounds unfinished frames and JSON byte size", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(" ".repeat(8 * 1024 * 1024 + 1), { headers: { "content-type": "application/json" } })));
   await expect(client.getProfile()).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
 });
-it("cancels a blocked reader on abort", async () => {
+const generationAt = "2026-10-01T00:00:00.001Z";
+function stalledStream() {
+  let push!: (text: string) => void;
   const cancel = vi.fn();
-  const body = new ReadableStream<Uint8Array>({ cancel });
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { headers: { "content-type": "text/event-stream" } })));
-  const controller = new AbortController();
+  const body = new ReadableStream<Uint8Array>({ start(c) { push = text => c.enqueue(new TextEncoder().encode(text)); }, cancel });
+  return { push, cancel, response: new Response(body, { headers: { "content-type": "text/event-stream", "X-Actically-Generation": generationAt } }) };
+}
+it("queues abort until persisted meta, acknowledges cancellation, then cancels a blocked reader", async () => {
+  const controller = new AbortController(), sse = stalledStream();
+  const spy = vi.fn().mockResolvedValueOnce(sse.response).mockResolvedValueOnce(Response.json({ data: { ...message, status: "cancelled" } }));
+  vi.stubGlobal("fetch", spy);
+  controller.abort();
+  const iterator = client.streamChat("s1", input, controller.signal)[Symbol.asyncIterator]();
+  const first = iterator.next();
+  await Promise.resolve(); await Promise.resolve();
+  expect(spy).toHaveBeenCalledTimes(1); // no row to cancel before meta
+  expect(spy.mock.calls[0][1].signal.aborted).toBe(false);
+  sse.push(meta);
+  expect((await first).value?.event).toBe("meta");
+  await expect(iterator.next()).rejects.toMatchObject({ name: "AbortError" });
+  expect(spy).toHaveBeenCalledTimes(2);
+  expect(spy.mock.calls[1][0]).toBe("/api/v1/sessions/s1/messages/cancel");
+  expect(JSON.parse(spy.mock.calls[1][1].body)).toEqual({ requestId: input.requestId, generationAt });
+  expect(spy.mock.calls[1][1]).toMatchObject({ method: "POST", credentials: "include" });
+  expect(spy.mock.calls[1][1].signal).not.toBe(controller.signal);
+  expect(sse.cancel).toHaveBeenCalledOnce();
+});
+it("returns authoritative completed ACK even when the SSE reader is blocked", async () => {
+  const controller = new AbortController(), sse = stalledStream();
+  const spy = vi.fn().mockResolvedValueOnce(sse.response).mockResolvedValueOnce(Response.json({ data: message }));
+  vi.stubGlobal("fetch", spy); sse.push(meta);
+  const iterator = client.streamChat("s1", input, controller.signal)[Symbol.asyncIterator]();
+  await iterator.next();
+  const pending = iterator.next(); controller.abort();
+  expect((await pending).value).toEqual({ event: "done", data: { requestId: input.requestId, message } });
+  expect((await iterator.next()).done).toBe(true);
+  expect(sse.cancel).toHaveBeenCalledOnce();
+});
+it.each(["network", "unauthorized", "malformed", "wrong generation"])("does not falsely confirm cancellation when ACK fails (%s)", async failure => {
+  const controller = new AbortController(), sse = stalledStream();
+  const spy = vi.fn().mockResolvedValueOnce(sse.response);
+  if (failure === "network") spy.mockRejectedValueOnce(new Error("offline"));
+  else if (failure === "unauthorized") spy.mockResolvedValueOnce(Response.json({ error: { code: "UNAUTHENTICATED", message: "Login", requestId: "r", retryable: false } }, { status: 401 }));
+  else if (failure === "wrong generation") spy.mockResolvedValueOnce(Response.json({ error: { code: "CONFLICT", message: "Retry running", requestId: "r", retryable: false } }, { status: 409 }));
+  else spy.mockResolvedValueOnce(Response.json({ data: { ...message, id: "another", status: "cancelled" } }));
+  vi.stubGlobal("fetch", spy); sse.push(meta);
+  const iterator = client.streamChat("s1", input, controller.signal)[Symbol.asyncIterator]();
+  await iterator.next(); controller.abort();
+  await expect(iterator.next()).rejects.toMatchObject({ name: "ActicallyClientError", code: "INTERNAL_ERROR", requestId: input.requestId, message: expect.stringContaining("tải lại phiên") });
+  expect(sse.cancel).toHaveBeenCalledOnce();
+});
+it("bounds cancellation waiting before meta without claiming server acknowledgement", async () => {
+  vi.useFakeTimers();
+  const controller = new AbortController(), sse = stalledStream();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sse.response));
   const result = events(controller.signal);
-  await Promise.resolve(); await Promise.resolve(); controller.abort();
-  await expect(result).rejects.toMatchObject({ name: "AbortError" });
-  expect(cancel).toHaveBeenCalledOnce();
+  const checked = expect(result).rejects.toMatchObject({ name: "ActicallyClientError", code: "INTERNAL_ERROR" });
+  controller.abort(); await vi.advanceTimersByTimeAsync(10_000); await checked;
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(sse.cancel).toHaveBeenCalledOnce();
+  expect(vi.getTimerCount()).toBe(0);
+});
+it("keeps transport open until ACK and reports an ACK timeout as unconfirmed", async () => {
+  const controller = new AbortController(), ack = new AbortController(), sse = stalledStream();
+  const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValueOnce(ack.signal);
+  const body = new ReadableStream<Uint8Array>();
+  const spy = vi.fn().mockResolvedValueOnce(sse.response).mockResolvedValueOnce(new Response(body, { headers: { "content-type": "application/json" } }));
+  vi.stubGlobal("fetch", spy); sse.push(meta);
+  const iterator = client.streamChat("s1", input, controller.signal)[Symbol.asyncIterator]();
+  await iterator.next(); controller.abort();
+  expect(spy.mock.calls[0][1].signal.aborted).toBe(false);
+  expect(timeout).toHaveBeenCalledWith(10_000);
+  const next = iterator.next(), checked = expect(next).rejects.toMatchObject({ name: "ActicallyClientError", code: "INTERNAL_ERROR" });
+  ack.abort(new DOMException("Timeout", "TimeoutError")); await checked;
+  expect(spy.mock.calls[0][1].signal.aborted).toBe(true);
+  expect(sse.cancel).toHaveBeenCalledOnce(); timeout.mockRestore();
 });
 it("cancels reader when consumer leaves early and immediately after terminal done", async () => {
   for (const terminal of [false, true]) {

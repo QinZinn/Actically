@@ -68,7 +68,7 @@ export function useSession(sessionId: string) {
       return true;
     } catch (err) {
       if (current()) {
-        const cancelled = controller.signal.aborted;
+        const cancelled = err instanceof Error && err.name === "AbortError";
         if (!cancelled) setError(err instanceof Error ? err.message : "Gửi tin nhắn thất bại");
         setMessages(prev => prev.map(m => m.requestId === requestId && m.role === "assistant" ?
           { ...m, status: cancelled ? "cancelled" : "failed" } : m));

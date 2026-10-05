@@ -96,6 +96,31 @@ it("persists the real HTTP/auth-shim/PostgreSQL/provider-validated learning loop
   expect((await call("study-sets", "POST", { subject: "X", title: "X", description: "", userId: owner })).status).toBe(400);
 });
 
+it("acknowledges durable cancellation through the authenticated adapter and real route", async () => {
+  const owner = state.userId = await createUser(database.pg), previousAi = state.ai;
+  let release!: () => void;
+  const gate = new Promise<void>(r => { release = r; });
+  state.ai = { async *streamChat() { await gate; yield { event: "done", content: "late answer", sourceRefs: [] }; } };
+  try {
+    const client = new HttpAdapter("/api/v1"), controller = new AbortController();
+    const session = await client.createSession({ studySetId: null, title: "Cancel HTTP", mode: "ask" });
+    const payload: ChatRequest = { requestId: crypto.randomUUID(), content: "hi", mode: "ask", followUpStep: null };
+    const iterator = client.streamChat(session.id, payload, controller.signal)[Symbol.asyncIterator]();
+    const first = (await iterator.next()).value!;
+    expect(first.event).toBe("meta"); controller.abort();
+    await expect(iterator.next()).rejects.toMatchObject({ name: "AbortError" });
+    expect((await client.listMessages(session.id))[1]).toMatchObject({ status: "cancelled", content: "" });
+    state.userId = await createUser(database.pg);
+    const cancel = { requestId: payload.requestId, generationAt: "2026-10-01T00:00:00.000Z" };
+    expect((await call(`sessions/${session.id}/messages/cancel`, "POST", cancel)).status).toBe(404);
+    state.userId = null;
+    expect((await call(`sessions/${session.id}/messages/cancel`, "POST", cancel)).status).toBe(401);
+    state.userId = owner;
+    expect((await call(`sessions/${session.id}/messages/cancel`, "POST", { requestId: payload.requestId })).status).toBe(400);
+    release();
+  } finally { release(); state.ai = previousAi; state.userId = owner; }
+});
+
 it("runs the production HttpAdapter through every handler namespace and persisted retries", async () => {
   state.userId = await createUser(database.pg);
   const client = new HttpAdapter("/api/v1");

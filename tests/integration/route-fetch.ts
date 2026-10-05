@@ -7,6 +7,7 @@ import * as sessions from "@/app/api/v1/sessions/route";
 import * as session from "@/app/api/v1/sessions/[id]/route";
 import * as messages from "@/app/api/v1/sessions/[id]/messages/route";
 import * as stream from "@/app/api/v1/sessions/[id]/messages/stream/route";
+import * as cancel from "@/app/api/v1/sessions/[id]/messages/cancel/route";
 import * as finish from "@/app/api/v1/sessions/[id]/finish/route";
 import * as attempts from "@/app/api/v1/practice-attempts/route";
 import * as attempt from "@/app/api/v1/practice-attempts/[id]/route";
@@ -29,6 +30,7 @@ const routes: [RegExp, Handlers][] = [
   [/^study-sets\/([^/]+)\/sources$/, sources], [/^sources\/([^/]+)$/, source],
   [/^sessions$/, sessions], [/^sessions\/([^/]+)$/, session],
   [/^sessions\/([^/]+)\/messages$/, messages], [/^sessions\/([^/]+)\/messages\/stream$/, stream],
+  [/^sessions\/([^/]+)\/messages\/cancel$/, cancel],
   [/^sessions\/([^/]+)\/finish$/, finish], [/^practice-attempts$/, attempts],
   [/^practice-attempts\/([^/]+)$/, attempt], [/^practice-attempts\/([^/]+)\/evaluate$/, evaluate],
   [/^practice-attempts\/([^/]+)\/retry$/, retry], [/^concepts$/, concepts], [/^concepts\/([^/]+)$/, concept],

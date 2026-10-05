@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import { aiExtractionSchema, type AiChatInput, type SourceSnapshot } from "@/contracts/ai";
 import type { LearningSession, Message, SolveResult, SourceRef } from "@/contracts/dto";
-import type { ChatRequest, ExtractionRequest, SessionCreate, SessionUpdate } from "@/contracts/requests";
+import type { ChatCancel, ChatRequest, ExtractionRequest, SessionCreate, SessionUpdate } from "@/contracts/requests";
 import { encodeChatEvent, type ChatEvent } from "@/contracts/sse";
 import type { Db } from "@/db/client";
 import { concepts, extractions, learningSessions, messages } from "@/db/schema";
@@ -59,6 +59,20 @@ export async function listMessages(ctx: Ctx, sessionId: string) {
   return (await sessionMessages(ctx.db, ctx.userId, sessionId)).map(toMessage);
 }
 
+/** An explicit, authenticated acknowledgement survives serverless disconnects. */
+export async function cancelChat(ctx: Ctx, sessionId: string, input: ChatCancel): Promise<Message> {
+  await getSessionRow(ctx.db, ctx.userId, sessionId);
+  const owned = and(eq(messages.sessionId, sessionId), eq(messages.userId, ctx.userId), eq(messages.requestId, input.requestId), eq(messages.role, "assistant"));
+  const generation = new Date(input.generationAt);
+  const [cancelled] = await ctx.db.update(messages).set({ status: "cancelled", updatedAt: new Date(Math.max(nowOf(ctx).getTime(), generation.getTime() + 1)) })
+    .where(and(owned, eq(messages.updatedAt, generation), inArray(messages.status, ["pending", "streaming"]))).returning();
+  if (cancelled) return toMessage(cancelled);
+  const [current] = await ctx.db.select().from(messages).where(owned);
+  if (!current) throw notFound();
+  if (current.status === "pending" || current.status === "streaming") throw conflict("Một lần thử mới đang xử lý. Hãy tải lại phiên để kiểm tra.");
+  return toMessage(current); // completion may have won the race; repeated cancellation is harmless
+}
+
 export function renderSolve(s: SolveResult) {
   const steps = s.steps.map(st => `**Bước ${st.number}: ${st.action}**\n\n${st.explanation}\n\n_Nguyên lý:_ ${st.principle}`).join("\n\n");
   return `${steps}\n\n**Kiểm tra hiểu bài:** ${s.comprehensionCheck}`;
@@ -67,19 +81,20 @@ export function renderSolve(s: SolveResult) {
 const isStale = (r: { updatedAt: Date }, now: Date) => now.getTime() - r.updatedAt.getTime() > STALE_MS;
 const SSE_HEADERS = { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", Connection: "keep-alive" };
 
-function sseResponse(run: (send: (e: ChatEvent) => void, signal: AbortSignal) => Promise<void>, outer?: AbortSignal) {
+function sseResponse(run: (send: (e: ChatEvent) => void, signal: AbortSignal) => Promise<void>, outer?: AbortSignal, generationAt?: Date) {
   const abort = new AbortController();
+  const onAbort = () => abort.abort();
   if (outer?.aborted) abort.abort();
-  else outer?.addEventListener("abort", () => abort.abort(), { once: true });
+  else outer?.addEventListener("abort", onAbort, { once: true });
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (e: ChatEvent) => { try { controller.enqueue(encoder.encode(encodeChatEvent(e))); } catch { /* client gone */ } };
-      try { await run(send, abort.signal); } finally { try { controller.close(); } catch { /* already closed */ } }
+      try { await run(send, abort.signal); } finally { outer?.removeEventListener("abort", onAbort); try { controller.close(); } catch { /* already closed */ } }
     },
     cancel() { abort.abort(); },
   });
-  return new Response(stream, { headers: SSE_HEADERS });
+  return new Response(stream, { headers: { ...SSE_HEADERS, ...(generationAt ? { "X-Actically-Generation": iso(generationAt) } : {}) } });
 }
 
 /**
@@ -98,7 +113,7 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
       throw conflict("requestId đã được dùng cho yêu cầu khác.");
     const meta: ChatEvent = { event: "meta", data: { requestId: input.requestId, sessionId, userMessageId: prevUser.id, assistantMessageId: prevAssistant.id } };
     if (prevAssistant.status === "completed")
-      return sseResponse(async send => { send(meta); send({ event: "done", data: { requestId: input.requestId, message: toMessage(prevAssistant) } }); });
+      return sseResponse(async send => { send(meta); send({ event: "done", data: { requestId: input.requestId, message: toMessage(prevAssistant) } }); }, undefined, prevAssistant.updatedAt);
     if ((prevAssistant.status === "pending" || prevAssistant.status === "streaming") && !isStale(prevAssistant, now)) throw conflict("Yêu cầu này đang được xử lý.");
   }
 
@@ -108,8 +123,8 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
     ({ userMsg, assistant } = await ctx.db.transaction(async tx => {
       await tx.update(learningSessions).set({ mode: input.mode, updatedAt: now }).where(eq(learningSessions.id, session.id));
       if (prevUser && prevAssistant) {
-        const [a] = await tx.update(messages).set({ status: "streaming", content: "", solve: null, updatedAt: now })
-          .where(and(eq(messages.id, prevAssistant.id), ne(messages.status, "completed"), or(inArray(messages.status, ["failed", "cancelled"]), lt(messages.updatedAt, new Date(now.getTime() - STALE_MS))))).returning();
+        const [a] = await tx.update(messages).set({ status: "streaming", content: "", solve: null, updatedAt: new Date(Math.max(now.getTime(), prevAssistant.updatedAt.getTime() + 1)) })
+          .where(and(eq(messages.id, prevAssistant.id), eq(messages.updatedAt, prevAssistant.updatedAt), ne(messages.status, "completed"), or(inArray(messages.status, ["failed", "cancelled"]), lt(messages.updatedAt, new Date(now.getTime() - STALE_MS))))).returning();
         if (!a) throw conflict("Yêu cầu này đang được xử lý.");
         return { userMsg: prevUser, assistant: a };
       }
@@ -120,7 +135,8 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
     }));
   } catch (e) { await release(); throw e; }
 
-  const assistantWhere = and(eq(messages.id, assistant.id), eq(messages.status, "streaming"));
+  const assistantWhere = and(eq(messages.id, assistant.id), eq(messages.status, "streaming"), eq(messages.updatedAt, assistant.updatedAt));
+  const finishedAt = () => new Date(Math.max(Date.now(), assistant.updatedAt.getTime() + 1));
 
   // Everything after the reservation runs inside run()'s try/finally: context errors mark the answer failed and release the slot.
   return sseResponse(async (send, signal) => {
@@ -147,17 +163,17 @@ export async function streamChat(ctx: Ctx, sessionId: string, input: ChatRequest
       }
       throwIfAborted(signal);
       if (content === undefined) throw new AiServiceError("AI_INVALID_OUTPUT", "AI không trả về kết quả hoàn chỉnh.", true);
-      const [done] = await ctx.db.update(messages).set({ content, solve, status: "completed", updatedAt: new Date() }).where(assistantWhere).returning();
+      const [done] = await ctx.db.update(messages).set({ content, solve, status: "completed", updatedAt: finishedAt() }).where(assistantWhere).returning();
       if (!done) throw conflict();
       send({ event: "done", data: { requestId: input.requestId, message: toMessage(done) } });
     } catch (e) {
       const status = signal.aborted || (e instanceof AiServiceError && e.code === "AI_CANCELLED") ? "cancelled" : "failed";
-      await ctx.db.update(messages).set({ status, content: partial.slice(0, 32000), updatedAt: new Date() }).where(assistantWhere);
+      await ctx.db.update(messages).set({ status, content: partial.slice(0, 32000), updatedAt: finishedAt() }).where(assistantWhere);
       if (!signal.aborted) send({ event: "error", data: toApiError(e, input.requestId).body.error });
     } finally {
       await release();
     }
-  }, ctx.signal);
+  }, ctx.signal, assistant.updatedAt);
 }
 
 /** Validates AI source refs against the exact snapshots that were given to the model. */

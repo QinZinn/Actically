@@ -1,4 +1,6 @@
-# Actically API contract — 1.0.2
+# Actically API contract — 1.0.3
+
+Revision 1.0.3 adds authenticated `POST /sessions/:id/messages/cancel` and the SSE response header `X-Actically-Generation` (ISO UTC). The adapter uses this generation token internally; ActicallyClient signatures and SSE event shapes remain unchanged. Deploy the adapter and handlers together.
 
 Revision 1.0.2 adds optional nullable Message.requestContext `{ mode, followUpStep }`, preserving the original operation for retry after history reload. New backend messages should populate it; old fixtures/records remain valid without it. Retry reuses the paired user message content/requestId plus this context, never generates a new requestId. Missing legacy context should prompt a fresh user action rather than pretend an identical retry. All client signatures remain unchanged.
 
@@ -27,6 +29,7 @@ Authenticated identity comes from verified Supabase getUser, with owner filterin
 | DELETE /sessions/:id | — | null / deleteSession |
 | GET /sessions/:id/messages | — | Message[] / listMessages |
 | POST /sessions/:id/messages/stream | chatRequestSchema | SSE / streamChat |
+| POST /sessions/:id/messages/cancel | chatCancelSchema: requestId + generationAt | Message / internal streamChat acknowledgement |
 | POST /sessions/:id/finish | extractionRequestSchema | ExtractionResult / finishSession |
 | GET /practice-attempts | list query | PracticeAttempt[] / listAttempts |
 | POST /practice-attempts | practiceCreateSchema | PracticeAttempt / createAttempt |
@@ -57,7 +60,11 @@ POST SSE `Content-Type: text/event-stream`, `Cache-Control: no-cache, no-transfo
 3. `done`: `{ requestId, message }`, exactly one completed Message after schema-valid result AND successful persistence. Structured Solve calls service.solve and emits a validated done message, optionally a readable delta. UI renders message.solve steps.
 4. `error`: `{ code, message, requestId, retryable }`. Before SSE headers, errors are ordinary HTTP JSON. After headers, use this event.
 
-Abort cancels upstream work, marks the assistant cancelled (partial display may be saved with cancelled status), and never emits done. Provider failure marks failed. Retrying SAME requestId and identical content reuses user/assistant IDs and replaces the failed/cancelled response; different payload with same key is 409. A completed replay emits meta+done without provider call. Concurrent replay must not start a second generation. Disconnection propagates request.signal; stop DB success writes after abort. No silent demo fallback.
+User Hủy queues cancellation until persisted meta, then sends an independently bounded cancellation POST with requestId and the response header's generationAt. The server atomically marks that owned, matching generation cancelled. Only a confirmed cancelled DTO becomes UI cancelled/AbortError; an acknowledgement failure becomes a typed error asking for a reload. If completion won the database race, the completed DTO is authoritative and still appears as done. A stale cancellation cannot mutate a newer pending/streaming retry (409).
+
+After acknowledgement the adapter aborts its private SSE transport; provider cleanup still uses request.signal and finally. Hosts may delay disconnect propagation, so the old provider/quota slot can remain occupied until cleanup or the existing 60-second operation timeout. Cancelled persistence is protected independently. Closing the page before persisted meta is received cannot guarantee the queued POST was sent. Adapter bounds: 70 seconds for transport, 10 seconds waiting for meta after Hủy, and 10 seconds for the acknowledgement.
+
+Provider failure marks failed. Retrying SAME requestId and identical content/mode/followUpStep reuses user/assistant IDs and replaces the failed/cancelled response; different payload with the same key is 409. A completed replay emits meta+done without a provider call. Retry claims compare the previously read timestamp and advance it monotonically. Completion/failure writes compare the generation timestamp as well as streaming status, so an old provider cannot overwrite a retry. No silent demo fallback.
 
 Finish extraction is deduped by user+session+idempotencyKey and creates pending concepts only. Cards/attempts use idempotencyKey. Grading requires a server-issued presentationId bound to user/card/revision; same idempotency key returns the stored result. The update + append-only review event are atomic, stale/double presentation grades conflict. UI shows grades only after reveal; API does not trust UI as authorization.
 

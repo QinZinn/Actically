@@ -5,7 +5,7 @@ import {
   apiErrorSchema, userProfileSchema, studySetSchema, sourceSchema, sessionSchema, messageSchema,
   practiceAttemptSchema, practiceDetailSchema, practiceEvaluationSchema, conceptSchema,
   flashcardSchema, reviewPresentationSchema, gradeResultSchema, topicProgressSchema,
-  searchResultSchema, extractionResultSchema, type Concept,
+  searchResultSchema, extractionResultSchema, type Concept, type Message,
 } from "@/contracts/dto";
 import { chatEventSchema, type ChatEvent } from "@/contracts/sse";
 import { ActicallyClientError, fromApiError } from "./errors";
@@ -77,16 +77,42 @@ export default class HttpAdapter implements ActicallyClient {
   deleteSession(id: string) { return this.request(`sessions/${encodeURIComponent(id)}`, empty, { method: "DELETE" }); }
   listMessages(id: string) { return this.request(`sessions/${encodeURIComponent(id)}/messages`, z.array(messageSchema)); }
   async *streamChat(sessionId: string, input: Requests.ChatRequest, signal?: AbortSignal): AsyncIterable<ChatEvent> {
-    const response = await fetch(`${this.base}/sessions/${encodeURIComponent(sessionId)}/messages/stream`, {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(input), signal,
-    });
-    if (!response.ok) throw responseError(await jsonBody(response, signal), response.status);
-    if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) throw protocolError();
-    const reader = response.body.getReader(), decoder = new TextDecoder("utf-8", { fatal: true });
-    let buffer = "", bytes = 0, assistantId: string | null = null;
+    // A disconnect alone is not a durable cancellation on serverless hosts.
+    const transport = new AbortController(), deadline = setTimeout(() => transport.abort(), 70_000);
+    const cancellationError = () => new ActicallyClientError({ code: "INTERNAL_ERROR", message: "Không thể xác nhận hủy trên máy chủ. Hãy tải lại phiên để kiểm tra.", requestId: input.requestId, retryable: true });
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined, assistantId: string | null = null, generationAt: string | null = null, completed = false;
+    let waitingForMeta: ReturnType<typeof setTimeout> | undefined;
+    let cancellation: Promise<{ message: Message } | { error: unknown }> | undefined;
+    const correlated = (message: Message) => message.id === assistantId && message.sessionId === sessionId && message.requestId === input.requestId && message.role === "assistant";
+    const onAbort = () => {
+      if (completed || cancellation) return;
+      if (!assistantId) { waitingForMeta ??= setTimeout(() => transport.abort(), 10_000); return; }
+      clearTimeout(waitingForMeta);
+      cancellation = (async () => {
+        try {
+          if (!generationAt || !z.iso.datetime().safeParse(generationAt).success) throw cancellationError();
+          const message = await this.request(`sessions/${encodeURIComponent(sessionId)}/messages/cancel`, messageSchema,
+            { method: "POST", body: { requestId: input.requestId, generationAt }, signal: AbortSignal.timeout(10_000) });
+          if (!correlated(message)) throw cancellationError();
+          return { message };
+        } catch (error) { return { error }; }
+        finally { transport.abort(); }
+      })();
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
     try {
+      const response = await fetch(`${this.base}/sessions/${encodeURIComponent(sessionId)}/messages/stream`, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify(input), signal: transport.signal,
+      });
+      if (!response.ok) throw responseError(await jsonBody(response, transport.signal), response.status);
+      if (!response.body || !response.headers.get("content-type")?.includes("text/event-stream")) throw protocolError();
+      generationAt = response.headers.get("X-Actically-Generation");
+      reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      let buffer = "", bytes = 0;
       for (;;) {
-        const chunk = await read(reader, signal); if (chunk.done) throw protocolError();
+        const chunk = await read(reader, transport.signal); if (chunk.done) throw protocolError();
         bytes += chunk.value.byteLength; if (bytes > 2 * 1024 * 1024) throw protocolError();
         buffer += decoder.decode(chunk.value, { stream: true });
         if (buffer.length > 1024 * 1024) throw protocolError();
@@ -105,17 +131,32 @@ export default class HttpAdapter implements ActicallyClient {
           if (event.event === "meta") {
             if (assistantId || event.data.sessionId !== sessionId) throw protocolError();
             assistantId = event.data.assistantMessageId;
+            if (signal?.aborted) onAbort();
           } else if (!assistantId) throw protocolError();
           if (event.event === "done") {
             const message = event.data.message;
-            if (message.id !== assistantId || message.sessionId !== sessionId || message.requestId !== input.requestId || message.role !== "assistant" || message.status !== "completed") throw protocolError();
+            if (!correlated(message) || message.status !== "completed") throw protocolError();
+            completed = true;
           }
-          signal?.throwIfAborted(); yield event;
+          if (!signal?.aborted || event.event === "meta" || event.event === "done") yield event;
           if (event.event === "done") return;
         }
       }
-    } catch (error) { if (signal?.aborted) throw signal.reason; throw error instanceof ActicallyClientError ? error : protocolError(); }
-    finally { void reader.cancel().catch(() => {}); }
+    } catch (error) {
+      if (signal?.aborted) {
+        const acknowledgement = await cancellation;
+        if (acknowledgement && "message" in acknowledgement) {
+          const message = acknowledgement.message;
+          if (message.status === "completed") { completed = true; yield { event: "done", data: { requestId: input.requestId, message } }; return; }
+          if (message.status === "cancelled") throw new DOMException("Aborted", "AbortError");
+        }
+        throw cancellationError();
+      }
+      throw error instanceof ActicallyClientError ? error : protocolError();
+    } finally {
+      clearTimeout(deadline); clearTimeout(waitingForMeta); signal?.removeEventListener("abort", onAbort);
+      transport.abort(); void reader?.cancel().catch(() => {});
+    }
   }
   finishSession(id: string, body: Requests.ExtractionRequest) { return this.request(`sessions/${encodeURIComponent(id)}/finish`, extractionResultSchema, { method: "POST", body }); }
   listAttempts(query?: ListQuery) { return this.request("practice-attempts", z.array(practiceAttemptSchema), { query }); }

@@ -85,6 +85,72 @@ describe("chat SSE orchestration", () => {
     expect((await readSse(first)).at(-1)?.event).toBe("done");
   });
 
+  it.each([false, true])("durable cancel fences a late generation and delayed cancel from its retry (old failure: %s)", async oldFails => {
+    const frozen = new Date("2030-01-01T00:00:00.000Z");
+    let releaseOld!: () => void, releaseNew!: () => void, started!: () => void;
+    const oldGate = new Promise<void>(r => { releaseOld = r; }), newGate = new Promise<void>(r => { releaseNew = r; });
+    const running = new Promise<void>(r => { started = r; });
+    const user = await createUser(pg);
+    const oldCtx = ctxFor(db, user, { async *streamChat() {
+      started(); await oldGate;
+      if (oldFails) throw new AiServiceError("AI_PROVIDER_ERROR", "old failure", true);
+      yield { event: "done" as const, content: "Old answer", sourceRefs: [] };
+    } }, () => frozen);
+    const session = await S.createSession(oldCtx, { studySetId: null, title: "Cancel race", mode: "ask" }), req = chat("hi");
+    const oldResponse = await S.streamChat(oldCtx, session.id, req);
+    await running;
+    const cancel = { requestId: req.requestId, generationAt: oldResponse.headers.get("X-Actically-Generation")! };
+    await expect(S.cancelChat(ctxFor(db, await createUser(pg)), session.id, cancel)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const cancelled = await S.cancelChat(oldCtx, session.id, cancel);
+    expect(cancelled.status).toBe("cancelled");
+    expect(await S.cancelChat(oldCtx, session.id, cancel)).toEqual(cancelled);
+    expect(new Date(cancelled.updatedAt).getTime()).toBeGreaterThan(new Date(cancel.generationAt).getTime());
+
+    const newCtx = ctxFor(db, user, { async *streamChat() { await newGate; yield { event: "done" as const, content: "New answer", sourceRefs: [] }; } }, () => frozen);
+    const retry = await S.streamChat(newCtx, session.id, req);
+    expect(new Date(retry.headers.get("X-Actically-Generation")!).getTime()).toBeGreaterThan(new Date(cancelled.updatedAt).getTime());
+    await expect(S.cancelChat(oldCtx, session.id, cancel)).rejects.toMatchObject({ code: "CONFLICT" });
+    releaseOld();
+    expect((await readSse(oldResponse)).map(e => e.event)).not.toContain("done");
+    expect((await S.listMessages(newCtx, session.id))[1]).toMatchObject({ id: cancelled.id, status: "streaming", content: "" });
+    releaseNew();
+    const completed = (await readSse(retry)).at(-1)!.data.message;
+    expect(completed).toMatchObject({ id: cancelled.id, status: "completed", content: "New answer" });
+    expect(await S.cancelChat(newCtx, session.id, cancel)).toEqual(completed); // completion wins, never overwritten
+    expect(await S.listMessages(newCtx, session.id)).toHaveLength(2);
+  });
+
+  it("rejects a delayed retry claim after another generation was started and cancelled", async () => {
+    const user = await createUser(pg), frozen = new Date("2030-01-01T00:00:00.000Z");
+    let finishOld!: () => void, resumeClaim!: () => void, claimStarted!: () => void, finishNew!: () => void;
+    const oldGate = new Promise<void>(r => { finishOld = r; }), claimGate = new Promise<void>(r => { resumeClaim = r; });
+    const staged = new Promise<void>(r => { claimStarted = r; }), newGate = new Promise<void>(r => { finishNew = r; });
+    const ctx = ctxFor(db, user, { async *streamChat() { await oldGate; yield { event: "done" as const, content: "old", sourceRefs: [] }; } }, () => frozen);
+    const session = await S.createSession(ctx, { studySetId: null, title: "Stale claim", mode: "ask" }), req = chat("hi");
+    const original = await S.streamChat(ctx, session.id, req);
+    await S.cancelChat(ctx, session.id, { requestId: req.requestId, generationAt: original.headers.get("X-Actically-Generation")! });
+    finishOld(); await readSse(original); // release the old provider's quota before two retry reservations
+
+    let transactionCount = 0, unexpectedCalls = 0;
+    const delayedDb = new Proxy(db, { get(target, property) {
+      if (property === "transaction") return async (...args: Parameters<Db["transaction"]>) => {
+        if (++transactionCount === 2) { claimStarted(); await claimGate; }
+        return target.transaction(...args);
+      };
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+    const delayed = S.streamChat(ctxFor(delayedDb, user, { streamChat: () => { unexpectedCalls++; return stream("stale"); } }, () => frozen), session.id, req);
+    const checked = expect(delayed).rejects.toMatchObject({ code: "CONFLICT" });
+    await staged;
+    const winner = await S.streamChat(ctxFor(db, user, { async *streamChat() { await newGate; yield { event: "done" as const, content: "new", sourceRefs: [] }; } }, () => frozen), session.id, req);
+    await S.cancelChat(ctx, session.id, { requestId: req.requestId, generationAt: winner.headers.get("X-Actically-Generation")! });
+    resumeClaim(); await checked;
+    expect(unexpectedCalls).toBe(0);
+    finishNew(); await readSse(winner);
+    expect((await S.listMessages(ctx, session.id))[1].status).toBe("cancelled");
+  });
+
   it("Solve returns structured steps; follow-up receives the previous solve", async () => {
     const user = await createUser(pg);
     const seen: AiChatInput[] = [];

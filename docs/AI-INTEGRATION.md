@@ -8,6 +8,8 @@ Provider configuration is server-only: NEBIUS_API_KEY, NEBIUS_MODEL, official `h
 
 Socratic generation uses a private structured question schema and validates the full short question before emitting delta/done. This keeps the existing HTTP/SSE contract and persistence behavior while preventing malformed partial Socratic replies from appearing. Ask continues to stream provider text. Cancellation and the same operation deadline apply to both paths.
 
+Chat Hủy uses an authenticated generation-specific acknowledgement before the browser aborts its SSE transport. Database completion/failure writes and retry claims are fenced by the generation timestamp; disconnect delivery is an additional cleanup mechanism. A serverless host may continue the old provider call until disconnect propagation or its 60-second deadline; keep its reservation until actual finally cleanup. No early quota release or cross-instance in-memory cancellation registry is introduced. See API-CONTRACT.md for acknowledgement races and page-unload limitations.
+
 Prompt v4 adds a positive script constraint for Vietnamese/Latin/Greek context and mathematical symbols, permits other scripts present in source/concept/learner input, and disables thinking only for short Socratic questions. Existing assistant text does not authorize another script. The configured Nemotron Super model passed the expanded source-backed Socratic follow-up test; this does not establish complete language detection or compatibility with every Nemotron model.
 
 Official references checked 2026-10-03:

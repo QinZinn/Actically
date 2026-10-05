@@ -21,7 +21,7 @@ Extraction requires grounded source snapshots and produces pending concepts only
 
 Bounded context: ≤20 source snapshots, ≤30 approved concept snapshots, ≤24 history messages, 16,000 learner/message characters, 48,000 total serialized context characters. Output: 4,096 completion tokens, ≤32,000 streamed content characters, ≤256 KiB provider response. Operation deadline: 60 seconds across catalog, retry and generation. Process cap: 4 operations; no unbounded queue. One retry, only before output on transport/429/5xx, then safe typed error. Model refusal, truncation, invalid JSON/schema/evidence or incomplete SSE never count as success.
 
-Backend must enforce 20 authenticated-user AI operations per 10 minutes and at most 2 active requests per user using database reservations with expiry. Frontend cancellation travels through HTTP AbortSignal to Nebius. Partial/failed/cancelled messages cannot be saved as completed success. Provider never logs raw learner material or responses, and public errors contain only safe Vietnamese text.
+Backend must enforce 20 authenticated-user AI operations per 10 minutes and at most 2 active requests per user using database reservations with expiry. Chat Hủy first obtains an authenticated, generation-specific database acknowledgement, then aborts its HTTP transport. AbortSignal propagates to Nebius when the host delivers the disconnect; provider reservations remain until actual cleanup or timeout. Generation fencing prevents late work from saving cancelled messages or overwriting retries. Provider never logs raw learner material or responses, and public errors contain only safe Vietnamese text. See API-CONTRACT.md for completion races and page-unload limitations.
 
 ## Verified documentation and current gaps
 

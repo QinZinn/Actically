@@ -71,3 +71,13 @@ Prompt v4 now uses Vietnamese Socratic instructions and a positive character con
 Validation for this local follow-up: 126 offline tests and 4 live Nemotron tests passed, including source-backed first/follow-up questions without unexpected Han characters, Solve, Feynman ranking and Blurting. Typecheck, lint and production build passed. The language follow-up is not yet deployed.
 
 An immediate browser Hủy test restored the composer, showed cancelled and kept the draft, but reload revealed a completed server answer. The deployed abort-only path therefore did not reliably cancel persistence. Durable cancellation is being repaired; do not mark the integration gate complete from the visual Hủy state alone. Fresh signup and production cross-user checks remain outside this run's coverage.
+
+## Durable cancellation repair, pending deployment
+
+![Answer persisted after Hủy on the previous deployment](cancel-before-fix.png)
+
+The adapter now waits for an authenticated, generation-specific cancellation acknowledgement before reporting cancelled and aborting its stream transport. An early Hủy is queued until the server's persisted meta arrives. Completion winning the database race remains a completed reply; failed acknowledgement shows a reload instruction rather than a false cancelled state. The endpoint, stream response header and adapter ship together as compatible contract revision 1.0.3; no database migration is needed.
+
+Monotonic generation timestamps fence completion/failure writes and retry claims. Controlled PostgreSQL tests cover old success/failure after cancel→retry, a delayed cancel against a newer retry, stale concurrent retry claims, ownership and completion-won replay. Adapter tests cover abort before meta, blocked reads, independent acknowledgement timeout, malformed/unauthorized/network failures and authoritative completion. The real adapter→authenticated-handler shim→PostgreSQL integration verifies persisted cancellation; these are local in-process tests, not a claim of live Vercel cancellation.
+
+Local validation: 137 offline tests passed; 4 live checks were opt-in/skipped in that run and had already passed for the preceding language repair at a120bf3. Typecheck, lint and production build passed, including the new cancel route. The new code awaits owner push/deployment and production Hủy→reload→retry retest. A page unload before meta cannot guarantee the queued acknowledgement was sent; serverless disconnect delivery may leave the old provider reservation occupied until actual cleanup or the existing timeout. The provider bounds and quota release policy are unchanged.
