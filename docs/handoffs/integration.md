@@ -77,3 +77,9 @@ Local repairs address toast dismissal, math escaping/delimiters/list rendering, 
 The owner subsequently deployed the earlier repairs. Production now renders KaTeX, dismisses the session toast and saves a valid Blurting assessment that survives reload. A new Socratic request still failed once with partial invalid text, then succeeded on retry. The successful question was saved as `Demo: Socratic xác suất có điều kiện`. The session and Practice navigation/history were checked at 375px, with no document overflow.
 
 Socratic now uses a private constrained JSON question schema and validates the full question before emitting the unchanged delta/done events. Ask keeps incremental streaming. Prompt version is `actically-learning-v3`; semantic evidence guards and operation bounds are retained. Final local checks: 124 offline tests, 4 real Nemotron tests, typecheck, lint and production build passed. This follow-up remains pending push/deployment and production retest. Full production cross-user/signup/cancellation checks remain unexecuted; status stays INTEGRATING.
+
+### Language and cancellation findings after the next deployment
+
+After the owner reported deploying 02d190b, a fresh production Socratic first request and follow-up both completed and persisted without invalid-output errors. Replies still mixed English/Chinese into Vietnamese. Local prompt v4 uses a positive script constraint with a source/learner foreign-script exception and thinking disabled only for short Socratic questions. 126 offline tests, 4 live Nemotron tests, typecheck, lint and build passed; this language repair awaits deployment.
+
+Production Hủy restored the composer and retained the draft, but reload showed that the server had completed and saved the answer. Abort-only cancellation is insufficient on this deployed path; durable cancellation and retry fencing are the remaining repair. Status stays INTEGRATING. See the production verification for evidence.

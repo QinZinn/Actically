@@ -32,5 +32,12 @@ describe.skipIf(!enabled)("LIVE Nebius account + Nemotron capabilities / synthet
     for await (const event of service!.streamChat(input)) { if (event.event === "delta") answer += event.text; else completed = true; }
     expect(completed).toBe(true);
     expect(answer.match(/[?？]/g)).toHaveLength(1);
-  }, 65000);
+    expect(answer).not.toMatch(/[\u3400-\u9fff\uf900-\ufaff]/);
+    let followUp = "";
+    for await (const event of service!.streamChat({ ...input, messages: [...input.messages, { role: "assistant", content: answer }, { role: "user", content: "Vậy mình chỉ xét 8 bạn học Tin, trong đó có 4 bạn cũng học Toán. Mình nghĩ xác suất đúng là 4/8 = 1/2." }] })) {
+      if (event.event === "done") followUp = event.content;
+    }
+    expect(followUp.match(/[?？]/g)).toHaveLength(1);
+    expect(followUp).not.toMatch(/[\u3400-\u9fff\uf900-\ufaff]/);
+  }, 130000);
 });

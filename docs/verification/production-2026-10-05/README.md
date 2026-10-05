@@ -59,3 +59,15 @@ Prompt-only enforcement did not reliably meet the one-question contract on the f
 Final local checks: 124 offline tests passed, including the HTTP/PostgreSQL/provider-validation journey; 4 opt-in live tests passed with the configured Nemotron model (Solve, two Socratic cases, Feynman correct/partial/incorrect ranking and Blurting); typecheck, lint and production build passed. A diagnostic attempt to disable model thinking globally did not improve all tasks and was discarded; it is not part of this repair.
 
 The new Socratic schema path has not yet been deployed or browser-tested on Vercel. Fresh signup, production cross-user checks and live browser cancellation remain outside this run's coverage. Keep the integration gate open until the final deployment is retested.
+
+## Retest after the owner reported deploying 02d190b
+
+A fresh source-backed session (`43bab2df-d579-4599-88cd-7f48e30da6be`, named `Kiểm thử: Socratic sau deploy`) returned a single question on the first request and another on follow-up, with no invalid-output error. Both replies and the renamed session survived reload. The first question mixed the English term `space` into Vietnamese; the follow-up included unexpected Chinese text. These are retained model-quality findings.
+
+![Saved post-deployment replies showing language drift](socratic-postdeploy.jpg)
+
+Prompt v4 now uses Vietnamese Socratic instructions and a positive character constraint covering Latin/Vietnamese/Greek text and mathematical symbols. If other scripts occur in supplied sources, approved concepts or learner messages, the schema permits foreign quotations; assistant history cannot enable that exception. Thinking is disabled only for the short Socratic question. Negative character exclusions and an automatic rewrite experiment did not reliably solve the problem and were discarded. No additional output-repair call is shipped. This remains a script guard, not a complete language detector.
+
+Validation for this local follow-up: 126 offline tests and 4 live Nemotron tests passed, including source-backed first/follow-up questions without unexpected Han characters, Solve, Feynman ranking and Blurting. Typecheck, lint and production build passed. The language follow-up is not yet deployed.
+
+An immediate browser Hủy test restored the composer, showed cancelled and kept the draft, but reload revealed a completed server answer. The deployed abort-only path therefore did not reliably cancel persistence. Durable cancellation is being repaired; do not mark the integration gate complete from the visual Hủy state alone. Fresh signup and production cross-user checks remain outside this run's coverage.

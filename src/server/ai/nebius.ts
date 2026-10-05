@@ -12,7 +12,14 @@ type Config = { apiKey: string; model: string; baseUrl?: string; fetch?: typeof 
 const completionSchema = z.object({ choices: z.array(z.object({ finish_reason: z.string().nullable(), message: z.object({ content: z.string().nullable(), refusal: z.string().nullable().optional() }) })).min(1) });
 const chunkSchema = z.object({ choices: z.array(z.object({ finish_reason: z.string().nullable().optional(), delta: z.object({ content: z.string().nullable().optional(), refusal: z.string().nullable().optional() }) })) });
 const hiddenTrace = /<\s*\/?\s*(?:think|analysis|reasoning)\b/i;
-const socraticQuestionSchema = z.strictObject({ question: z.string().min(2).max(600).regex(/^[^?？\r\n]+[?？]$/) });
+function socraticQuestionSchema(input: AiChatInput) {
+  // ponytail: constrain scripts, not full language detection; revisit if Latin-language drift persists.
+  // Source/user foreign terms may be quoted; assistant text cannot authorize another script.
+  const context = JSON.stringify({ sources: input.sources, concepts: input.concepts, messages: input.messages.filter(m => m.role === "user") });
+  const foreignText = (context.match(/\p{L}/gu) ?? []).some(letter => !/[\u0041-\u024f\u0370-\u03ff\u1e00-\u1eff]/.test(letter));
+  const pattern = foreignText ? /^[^?？\r\n]+[?？]$/ : /^[\u0020-\u003e\u0040-\u007e\u00a0-\u024f\u0370-\u03ff\u1e00-\u1eff\u2000-\u22ff\u25a0-\u27bf\u2a00-\u2aff]+[?？]$/;
+  return z.strictObject({ question: z.string().min(2).max(600).regex(pattern) });
+}
 
 async function readChunk(reader: ReadableStreamDefaultReader<Uint8Array>, signal: AbortSignal) {
   signal.throwIfAborted();
@@ -84,6 +91,7 @@ export class NebiusLearningService implements AiLearningService {
   }
   private payload(task: keyof typeof TASK_PROMPTS, input: AiContext, data: unknown, schema?: z.ZodType) {
     return { model: this.config.model, store: false, temperature: 0.3, max_completion_tokens: 4096,
+      ...(task === "socratic" ? { chat_template_kwargs: { enable_thinking: false } } : {}),
       messages: [{ role: "system", content: `${SYSTEM_PROMPT}\n${TASK_PROMPTS[task]}${schema ? "\nReturn ONLY the JSON object matching this schema: " + JSON.stringify(z.toJSONSchema(schema)) : ""}` },
         { role: "user", content: JSON.stringify({ sources: input.sources, concepts: input.concepts, ...data as object }) }],
       ...(schema ? { response_format: { type: "json_schema", json_schema: { name: `actically_${task}_v1`, strict: true, schema: z.toJSONSchema(schema) } } } : {}),
@@ -111,7 +119,7 @@ export class NebiusLearningService implements AiLearningService {
     const data = { messages: input.messages, followUpStep: input.followUpStep, previousSolve: input.previousSolve };
     if (input.mode === "socratic") {
       // A short question must pass validation before any learner-facing text is emitted.
-      const { question } = await this.structured("socratic", input, data, socraticQuestionSchema);
+      const { question } = await this.structured("socratic", input, data, socraticQuestionSchema(input));
       if (input.signal?.aborted) throw new AiServiceError("AI_CANCELLED", "Yêu cầu đã bị hủy.");
       yield { event: "delta", text: question };
       if (input.signal?.aborted) throw new AiServiceError("AI_CANCELLED", "Yêu cầu đã bị hủy.");
